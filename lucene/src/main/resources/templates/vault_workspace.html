@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRISM | Vault</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <link rel="stylesheet" th:href="@{/css/chat.css}">
+</head>
+<body data-scope-type="VAULT" th:attr="data-scope-id=${vaultId}">
+<header class="topbar">
+    <div class="brand"><a href="/home">PRISM</a></div>
+    <nav>
+        <a href="/home">Home</a>
+        <a href="/search/global">Ricerca</a>
+        <a href="/settings">Impostazioni</a>
+    </nav>
+    <div class="local-mode-indicator" title="Modalità locale attiva"></div>
+</header>
+<main class="page" style="max-width: 1080px;">
+    <section class="panel">
+        <div class="panel-header">
+            <h1 id="vault-title">Vault</h1>
+            <a class="cta cta-small ghost" href="/home">Torna ai vault</a>
+        </div>
+        <div class="panel-body">
+            <form id="vault-upload-form">
+                <label for="vault-files">Aggiungi documenti (PDF o HTML)</label>
+                <div class="row-inline">
+                    <input type="file" id="vault-files" accept=".pdf,.html,.htm" multiple required>
+                    <button type="submit">Carica</button>
+                </div>
+            </form>
+
+            <div id="vault-doc-list" style="margin-top: 16px;"></div>
+        </div>
+    </section>
+
+    <article class="panel chat-panel">
+        <div class="panel-header">
+            <h2>Chat vault</h2>
+            <div style="display:flex;gap:6px;">
+                <button id="new-chat-btn" class="ghost" title="Nuova sessione">+ Nuova</button>
+                <button class="icon" data-toggle="chat-body-wrap" title="Comprimi/Espandi">−</button>
+            </div>
+        </div>
+        <div class="chat-body" id="chat-body-wrap">
+            <details class="collapsible" style="margin: -16px -20px 12px -20px; border-top: none;">
+                <summary>
+                    <span class="chevron"></span>
+                    <span class="title">Cronologia sessioni</span>
+                    <span class="meta" id="session-meta">—</span>
+                </summary>
+                <div class="collapsible-body">
+                    <div id="session-list" class="session-list"></div>
+                </div>
+            </details>
+            <div id="chat-window"></div>
+            <div id="input-area">
+                <input type="text" id="user-input" placeholder="Fai una domanda trasversale sul vault...">
+                <button id="send-btn">Invia</button>
+            </div>
+            <div id="citation-links"></div>
+        </div>
+    </article>
+</main>
+<footer th:replace="~{fragments/footer :: footer}"></footer>
+<script th:src="@{/js/ui.js}"></script>
+<script th:src="@{/js/chat.js}"></script>
+</body>
+</html>

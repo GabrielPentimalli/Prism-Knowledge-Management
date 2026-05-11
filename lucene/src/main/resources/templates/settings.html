@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRISM | Impostazioni</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand"><a href="/home">PRISM</a></div>
+    <nav>
+        <a href="/home">Home</a>
+        <a href="/search/global">Ricerca</a>
+        <a href="/settings">Impostazioni</a>
+    </nav>
+    <div class="local-mode-indicator" title="Modalità locale attiva"></div>
+</header>
+<main class="page" style="max-width: 880px;">
+    <section class="panel">
+        <div class="panel-header">
+            <h1>Impostazioni locali</h1>
+        </div>
+        <div class="panel-body">
+            <form id="settings-form">
+                <label>Cartella dati</label>
+                <input id="dataRoot" type="text" th:value="${settings.dataRoot}">
+
+                <label>Modello AI locale</label>
+                <input id="llmModel" type="text" th:value="${settings.llmModel}">
+
+                <label>Endpoint AI locale</label>
+                <input id="llmBaseUrl" type="text" th:value="${settings.llmBaseUrl}">
+
+                <label>Lingua interfaccia</label>
+                <select id="language">
+                    <option value="it" th:selected="${settings.language == 'it'}">Italiano</option>
+                    <option value="en" th:selected="${settings.language == 'en'}">English</option>
+                </select>
+
+                <button type="submit" style="margin-top: 18px;">Salva impostazioni</button>
+            </form>
+            <div id="settings-feedback" class="muted" style="margin-top: 12px;"></div>
+        </div>
+    </section>
+
+    <details class="panel collapsible" open>
+        <summary>
+            <span class="chevron"></span>
+            <span class="title">Privacy</span>
+        </summary>
+        <div class="collapsible-body">
+            <p>Nessun contenuto viene inviato in rete. Sono consentite solo chiamate all'LLM locale su localhost.</p>
+            <button id="delete-total-btn" class="danger" style="margin-top: 8px;">Cancella tutti i dati locali</button>
+        </div>
+    </details>
+
+    <details class="panel collapsible">
+        <summary>
+            <span class="chevron"></span>
+            <span class="title">Log operazioni locali</span>
+            <span class="meta" id="log-meta">—</span>
+        </summary>
+        <div class="collapsible-body">
+            <pre id="privacy-log"></pre>
+        </div>
+    </details>
+</main>
+<script th:src="@{/js/ui.js}"></script>
+<script>
+async function refreshSettingsData() {
+    const res = await fetch('/api/settings');
+    const data = await res.json();
+    const lines = data.privacyLog || [];
+    document.getElementById('privacy-log').textContent = lines.length > 0 ? lines.join('\n') : '(nessun evento registrato)';
+    document.getElementById('log-meta').textContent = `${lines.length} righe`;
+}
+
+document.getElementById('settings-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const payload = {
+        dataRoot: document.getElementById('dataRoot').value,
+        llmModel: document.getElementById('llmModel').value,
+        llmBaseUrl: document.getElementById('llmBaseUrl').value,
+        language: document.getElementById('language').value
+    };
+    const progress = window.PrismToast?.progress('Salvataggio impostazioni...');
+    try {
+        const res = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        progress?.update('Impostazioni salvate (LLM riconfigurato a caldo).', 'success');
+        setTimeout(() => progress?.close(), 2500);
+        await refreshSettingsData();
+    } catch (e) {
+        progress?.update(`Errore: ${e.message}`, 'error');
+        setTimeout(() => progress?.close(), 5000);
+    }
+});
+
+document.getElementById('delete-total-btn').addEventListener('click', async () => {
+    if (!confirm('Sei sicuro di voler cancellare tutti i dati locali? L\'azione è irreversibile.')) return;
+    const progress = window.PrismToast?.progress('Cancellazione di tutti i dati locali...');
+    try {
+        await fetch('/api/data/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'TOTAL'})
+        });
+        progress?.update('Dati cancellati. Reindirizzamento all\'onboarding...', 'success');
+        setTimeout(() => { window.location.href = '/onboarding'; }, 1200);
+    } catch (e) {
+        progress?.update(`Errore: ${e.message}`, 'error');
+    }
+});
+
+refreshSettingsData();
+</script>
+<footer th:replace="~{fragments/footer :: footer}"></footer>
+</body>
+</html>

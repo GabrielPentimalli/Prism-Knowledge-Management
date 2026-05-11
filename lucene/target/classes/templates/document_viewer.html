@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="it" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRISM | Visualizzatore</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body th:attr="data-doc-id=${docId}">
+<header class="topbar">
+    <div class="brand"><a href="/home">PRISM</a></div>
+    <nav>
+        <a href="/home">Home</a>
+        <a href="/search/global">Ricerca</a>
+        <a href="/settings">Impostazioni</a>
+    </nav>
+    <div class="local-mode-indicator" title="Modalità locale attiva"></div>
+</header>
+<main class="page" style="max-width: 1080px;">
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <h1 id="doc-title" style="margin-bottom: 4px;">Caricamento...</h1>
+                <div class="muted" id="doc-meta"></div>
+            </div>
+            <div class="viewer-mode-toggle" id="viewer-mode-toggle">
+                <button data-mode="pages" class="active">Pagine</button>
+                <button data-mode="source">Sorgente</button>
+            </div>
+        </div>
+        <div class="panel-body" id="viewer-host"></div>
+    </section>
+</main>
+<footer th:replace="~{fragments/footer :: footer}"></footer>
+<script th:src="@{/js/ui.js}"></script>
+<script th:src="@{/js/viewer.js}"></script>
+</body>
+</html>
