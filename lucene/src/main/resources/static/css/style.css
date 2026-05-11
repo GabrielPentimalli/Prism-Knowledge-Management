@@ -41,7 +41,7 @@ body {
     display: flex;
     flex-direction: column;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-    background: radial-gradient(circle at top left, #131c2f 0%, var(--bg) 60%);
+    background: var(--bg);
     color: var(--text);
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
@@ -122,10 +122,11 @@ small {
 
 .topbar nav a {
     color: var(--text-secondary);
-    padding: 6px 12px;
+    padding: 6px 10px;
     border-radius: 999px;
-    font-size: 0.88rem;
-    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transition: all .15s ease;
 }
 
@@ -134,21 +135,10 @@ small {
     color: var(--text);
 }
 
-.local-mode-indicator {
-    display: inline-flex;
-    align-items: center;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--success-strong);
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
-    animation: pulse 2s infinite;
-    cursor: help;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+.topbar nav a svg {
+    width: 20px;
+    height: 20px;
+    display: block;
 }
 
 /* ─── Layout ────────────────────────────────────────────── */
@@ -1323,11 +1313,5 @@ pre {
 @media (max-width: 960px) {
     .workspace-grid {
         grid-template-columns: 1fr;
-    }
-    .topbar nav {
-        display: none;
-    }
-    .local-mode-indicator {
-        font-size: 0.7rem;
     }
 }

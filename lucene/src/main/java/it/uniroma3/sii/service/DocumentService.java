@@ -83,7 +83,7 @@ public class DocumentService {
         documentRepository.saveMetadata(document);
 
         try {
-            String extension = type == DocumentType.PDF ? "pdf" : "html";
+            String extension = sourceExtension(type, fileName);
             var sourcePath = documentRepository.saveSource(document.getId(), extension, new ByteArrayInputStream(bytes));
             document.setPath(sourcePath.toString());
             documentRepository.saveMetadata(document);
@@ -167,7 +167,32 @@ public class DocumentService {
         if (lower.endsWith(".html") || lower.endsWith(".htm")) {
             return DocumentType.HTML;
         }
-        throw new IllegalArgumentException("Formato non supportato. Consentiti solo PDF o HTML.");
+        if (lower.endsWith(".docx")) {
+            return DocumentType.DOCX;
+        }
+        if (lower.endsWith(".md") || lower.endsWith(".markdown")) {
+            return DocumentType.MARKDOWN;
+        }
+        if (lower.endsWith(".txt") || lower.endsWith(".text") || lower.endsWith(".log")
+                || lower.endsWith(".csv") || lower.endsWith(".tsv")
+                || lower.endsWith(".json") || lower.endsWith(".xml") || lower.endsWith(".yaml") || lower.endsWith(".yml")) {
+            return DocumentType.TXT;
+        }
+        throw new IllegalArgumentException(
+                "Formato non supportato. Consentiti: PDF, HTML, DOCX, Markdown (.md), TXT e altri file di testo (.csv, .tsv, .json, .xml, .yaml, .log).");
+    }
+
+    private String sourceExtension(DocumentType type, String fileName) {
+        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        int dot = lower.lastIndexOf('.');
+        String original = dot >= 0 && dot < lower.length() - 1 ? lower.substring(dot + 1) : "";
+        return switch (type) {
+            case PDF -> "pdf";
+            case HTML -> original.equals("htm") ? "htm" : "html";
+            case DOCX -> "docx";
+            case MARKDOWN -> original.equals("markdown") ? "markdown" : "md";
+            case TXT -> original.isEmpty() ? "txt" : original;
+        };
     }
 
     private String sha256(byte[] bytes) {

@@ -114,7 +114,7 @@
                 overlay.classList.remove('active');
                 const files = Array.from(e.dataTransfer.files || []).filter(isAccepted);
                 if (files.length === 0) {
-                    window.PrismToast?.warning('Nessun file compatibile rilasciato (solo PDF o HTML).');
+                    window.PrismToast?.warning('Nessun file compatibile rilasciato (formati supportati: PDF, HTML, DOCX, MD, TXT, ...).');
                     return;
                 }
                 onDrop(files);

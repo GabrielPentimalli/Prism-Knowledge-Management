@@ -65,10 +65,22 @@ public class DocumentController {
                 .orElseThrow(() -> new IllegalArgumentException("Sorgente documento non trovata: " + id));
         byte[] bytes = Files.readAllBytes(sourcePath);
         String filename = sourcePath.getFileName().toString();
-        MediaType mediaType = filename.endsWith(".pdf") ? MediaType.APPLICATION_PDF : MediaType.TEXT_HTML;
+        MediaType mediaType = resolveMediaType(filename);
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                 .body(new ByteArrayResource(bytes));
+    }
+
+    private MediaType resolveMediaType(String filename) {
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".pdf")) return MediaType.APPLICATION_PDF;
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) return MediaType.TEXT_HTML;
+        if (lower.endsWith(".docx")) {
+            return MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        }
+        if (lower.endsWith(".json")) return MediaType.APPLICATION_JSON;
+        if (lower.endsWith(".xml")) return MediaType.APPLICATION_XML;
+        return MediaType.TEXT_PLAIN;
     }
 }

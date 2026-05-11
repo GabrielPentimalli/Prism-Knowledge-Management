@@ -247,7 +247,7 @@
                 if (status?.documentId) window.location.href = `/workspace/document?docId=${encodeURIComponent(status.documentId)}`;
             });
             Drop.attach(uploadForm, {
-                accept: ['.pdf', '.html', '.htm'],
+                accept: ['.pdf', '.html', '.htm', '.docx', '.md', '.markdown', '.txt', '.text', '.log', '.csv', '.tsv', '.json', '.xml', '.yaml', '.yml'],
                 onDrop: async (files) => {
                     const status = await uploadSingleFile(files[0]);
                     if (status?.documentId) window.location.href = `/workspace/document?docId=${encodeURIComponent(status.documentId)}`;
@@ -335,14 +335,14 @@
                 filesInput.value = '';
             });
             Drop.attach(uploadForm, {
-                accept: ['.pdf', '.html', '.htm'],
+                accept: ['.pdf', '.html', '.htm', '.docx', '.md', '.markdown', '.txt', '.text', '.log', '.csv', '.tsv', '.json', '.xml', '.yaml', '.yml'],
                 onDrop: (files) => uploadVaultFiles(files),
             });
         }
 
         if (docListEl) {
             Drop.attach(docListEl, {
-                accept: ['.pdf', '.html', '.htm'],
+                accept: ['.pdf', '.html', '.htm', '.docx', '.md', '.markdown', '.txt', '.text', '.log', '.csv', '.tsv', '.json', '.xml', '.yaml', '.yml'],
                 onDrop: (files) => uploadVaultFiles(files),
             });
         }

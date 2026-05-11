@@ -1,6 +1,9 @@
 package it.uniroma3.sii.service.indexing;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -21,21 +26,25 @@ import it.uniroma3.sii.model.DocumentType;
 public class DocumentExtractionService {
 
     public List<ParsedParagraph> extract(Path sourcePath, DocumentType type) {
-        if (type == DocumentType.PDF) {
-            return extractPdf(sourcePath);
-        }
-        return extractHtml(sourcePath);
+        return switch (type) {
+            case PDF -> extractPdf(sourcePath);
+            case HTML -> extractHtml(sourcePath);
+            case DOCX -> extractDocx(sourcePath);
+            case TXT, MARKDOWN -> extractPlainText(sourcePath);
+        };
     }
 
     /**
      * Estrae il testo completo pagina per pagina, senza filtrare paragrafi corti.
-     * Per HTML restituisce una singola pagina con tutto il body.
+     * Per HTML/TXT/MD/DOCX restituisce una singola pagina con tutto il contenuto.
      */
     public List<DocumentPage> extractPages(Path sourcePath, DocumentType type) {
-        if (type == DocumentType.PDF) {
-            return extractPdfPages(sourcePath);
-        }
-        return extractHtmlPages(sourcePath);
+        return switch (type) {
+            case PDF -> extractPdfPages(sourcePath);
+            case HTML -> extractHtmlPages(sourcePath);
+            case DOCX -> extractDocxPages(sourcePath);
+            case TXT, MARKDOWN -> extractPlainTextPages(sourcePath);
+        };
     }
 
     private List<DocumentPage> extractPdfPages(Path sourcePath) {
@@ -70,6 +79,31 @@ public class DocumentExtractionService {
             return List.of(new DocumentPage(1, sb.toString().trim()));
         } catch (IOException e) {
             throw new IllegalStateException("Errore estrazione pagine HTML locale: " + sourcePath, e);
+        }
+    }
+
+    private List<DocumentPage> extractPlainTextPages(Path sourcePath) {
+        try {
+            String content = Files.readString(sourcePath, StandardCharsets.UTF_8);
+            return List.of(new DocumentPage(1, content == null ? "" : content));
+        } catch (IOException e) {
+            throw new IllegalStateException("Errore estrazione testo semplice: " + sourcePath, e);
+        }
+    }
+
+    private List<DocumentPage> extractDocxPages(Path sourcePath) {
+        try (InputStream in = Files.newInputStream(sourcePath);
+             XWPFDocument doc = new XWPFDocument(in)) {
+            StringBuilder sb = new StringBuilder();
+            for (XWPFParagraph paragraph : doc.getParagraphs()) {
+                String text = paragraph.getText();
+                if (text != null && !text.isBlank()) {
+                    sb.append(text).append("\n\n");
+                }
+            }
+            return List.of(new DocumentPage(1, sb.toString().trim()));
+        } catch (IOException e) {
+            throw new IllegalStateException("Errore estrazione pagine DOCX: " + sourcePath, e);
         }
     }
 
@@ -133,11 +167,35 @@ public class DocumentExtractionService {
             }
 
             String fallback = html.body() != null ? html.body().text() : html.text();
-            runningOffset = 0;
-            for (String paragraph : splitParagraphs(fallback)) {
-                String normalized = paragraph.trim();
+            return paragraphsFromText(fallback, 1, 20);
+        } catch (IOException e) {
+            throw new IllegalStateException("Errore parsing HTML locale: " + sourcePath, e);
+        }
+    }
+
+    private List<ParsedParagraph> extractPlainText(Path sourcePath) {
+        try {
+            String content = Files.readString(sourcePath, StandardCharsets.UTF_8);
+            return paragraphsFromText(content, 1, 20);
+        } catch (IOException e) {
+            throw new IllegalStateException("Errore parsing testo semplice: " + sourcePath, e);
+        }
+    }
+
+    private List<ParsedParagraph> extractDocx(Path sourcePath) {
+        try (InputStream in = Files.newInputStream(sourcePath);
+             XWPFDocument doc = new XWPFDocument(in)) {
+            List<ParsedParagraph> output = new ArrayList<>();
+            AtomicInteger paragraphIndex = new AtomicInteger(0);
+            int runningOffset = 0;
+            for (XWPFParagraph paragraph : doc.getParagraphs()) {
+                String text = paragraph.getText();
+                if (text == null) {
+                    continue;
+                }
+                String normalized = text.trim();
                 if (normalized.length() < 20) {
-                    runningOffset += paragraph.length();
+                    runningOffset += text.length() + 1;
                     continue;
                 }
                 output.add(new ParsedParagraph(
@@ -146,12 +204,36 @@ public class DocumentExtractionService {
                         paragraphIndex.getAndIncrement(),
                         runningOffset,
                         runningOffset + normalized.length()));
-                runningOffset += paragraph.length();
+                runningOffset += text.length() + 1;
             }
             return output;
         } catch (IOException e) {
-            throw new IllegalStateException("Errore parsing HTML locale: " + sourcePath, e);
+            throw new IllegalStateException("Errore estrazione DOCX: " + sourcePath, e);
         }
+    }
+
+    private List<ParsedParagraph> paragraphsFromText(String input, int pageNumber, int minLength) {
+        List<ParsedParagraph> output = new ArrayList<>();
+        if (input == null || input.isBlank()) {
+            return output;
+        }
+        AtomicInteger paragraphIndex = new AtomicInteger(0);
+        int runningOffset = 0;
+        for (String paragraph : splitParagraphs(input)) {
+            String normalized = paragraph.trim();
+            if (normalized.length() < minLength) {
+                runningOffset += paragraph.length();
+                continue;
+            }
+            output.add(new ParsedParagraph(
+                    normalized,
+                    pageNumber,
+                    paragraphIndex.getAndIncrement(),
+                    runningOffset,
+                    runningOffset + normalized.length()));
+            runningOffset += paragraph.length();
+        }
+        return output;
     }
 
     private List<String> splitParagraphs(String input) {

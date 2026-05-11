@@ -1,4 +1,5 @@
 it/uniroma3/sii/service/storage/LocalSettingsService.class
+it/uniroma3/sii/service/DocumentService$1.class
 it/uniroma3/sii/controller/ChatController.class
 it/uniroma3/sii/controller/DocumentController.class
 it/uniroma3/sii/dto/DataDeleteRequest.class
@@ -59,6 +60,7 @@ it/uniroma3/sii/service/indexing/ChunkIndexService.class
 it/uniroma3/sii/service/chat/ChatService.class
 it/uniroma3/sii/dto/FileIndexStatus.class
 it/uniroma3/sii/dto/KnowledgeDocumentResponse.class
+it/uniroma3/sii/service/indexing/DocumentExtractionService$1.class
 it/uniroma3/sii/service/chat/LlmClient.class
 it/uniroma3/sii/dto/chat/ChatResponse.class
 it/uniroma3/sii/model/DocumentPage.class
