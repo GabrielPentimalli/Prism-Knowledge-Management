@@ -1,0 +1,54 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== IDE / Editor =====
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===== Claude Code =====
+.claude/
+
+# ===== Maven / Java build =====
+lucene/target/
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+
+# ===== Lucene indices (runtime data) =====
+lucene/index/
+lucene/index_img/
+lucene/index_tables/
+
+# ===== Prism runtime data =====
+lucene/prism-data/
+/chats/
+/documents/
+/indices/
+/vaults/
+/config/
+/logs/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ===== Patches / temp =====
+*.patch
+*.orig
+*.rej
+*.tmp
+*.bak
