@@ -166,7 +166,7 @@ spring.servlet.multipart.max-file-size=100MB
 spring.servlet.multipart.max-request-size=200MB
 ```
 
-Le impostazioni runtime (data root, modello LLM, lingua) sono modificabili a caldo da `/settings` senza riavviare il backend.
+Le impostazioni runtime (data root, modello LLM) sono modificabili a caldo da `/settings` senza riavviare il backend.
 
 ---
 

@@ -5,6 +5,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import it.uniroma3.sii.service.DocumentService;
 import it.uniroma3.sii.service.SettingsService;
@@ -51,10 +52,23 @@ public class SearchController {
     }
 
     @GetMapping("/workspace/vault")
-    public String vaultWorkspace(@RequestParam(name = "vaultId", required = false) String vaultId, Model model) {
+    public String vaultWorkspace(@RequestParam(name = "vaultId", required = false) String vaultId, RedirectAttributes redirectAttributes) {
+        if (vaultId != null && !vaultId.isBlank()) {
+            redirectAttributes.addAttribute("vaultId", vaultId);
+        }
+        return "redirect:/workspace/vault/documents";
+    }
+
+    @GetMapping("/workspace/vault/documents")
+    public String vaultDocumentsWorkspace(@RequestParam(name = "vaultId", required = false) String vaultId, Model model) {
         model.addAttribute("vaultId", vaultId);
-        model.addAttribute("vaults", vaultService.listVaults());
         return "vault_workspace";
+    }
+
+    @GetMapping("/workspace/vault/chat")
+    public String vaultChatWorkspace(@RequestParam(name = "vaultId", required = false) String vaultId, Model model) {
+        model.addAttribute("vaultId", vaultId);
+        return "vault_workspace_chat";
     }
 
     @GetMapping("/document/{docId}")

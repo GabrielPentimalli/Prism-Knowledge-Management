@@ -58,7 +58,7 @@ public class LocalSettingsService {
                 .dataRoot(dataRoot)
                 .llmBaseUrl(normalizeUrl(request.getLlmBaseUrl(), defaultLlmBaseUrl))
                 .llmModel(normalizeText(request.getLlmModel(), defaultLlmModel))
-                .language(normalizeText(request.getLanguage(), "it"))
+                .language("it")
                 .localMode(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -75,7 +75,7 @@ public class LocalSettingsService {
                 .dataRoot(normalizeDataRoot(request.getDataRoot() != null ? request.getDataRoot() : current.getDataRoot()))
                 .llmBaseUrl(normalizeUrl(request.getLlmBaseUrl(), current.getLlmBaseUrl()))
                 .llmModel(normalizeText(request.getLlmModel(), current.getLlmModel()))
-                .language(normalizeText(request.getLanguage(), current.getLanguage()))
+                .language("it")
                 .localMode(true)
                 .createdAt(current.getCreatedAt() == null ? LocalDateTime.now() : current.getCreatedAt())
                 .updatedAt(LocalDateTime.now())
@@ -98,9 +98,9 @@ public class LocalSettingsService {
                     .resolve("settings.json");
             PrismSettings inRoot = readIfExists(fileInRoot);
             if (inRoot != null) {
-                return inRoot;
+                return enforceItalianLanguage(inRoot);
             }
-            return bootstrap;
+            return enforceItalianLanguage(bootstrap);
         }
         PrismSettings fallback = defaults();
         persistSettings(fallback);
@@ -163,5 +163,15 @@ public class LocalSettingsService {
             return url.substring(0, url.length() - 1);
         }
         return url;
+    }
+
+    private PrismSettings enforceItalianLanguage(PrismSettings settings) {
+        if (settings == null || "it".equalsIgnoreCase(settings.getLanguage())) {
+            return settings;
+        }
+        settings.setLanguage("it");
+        settings.setUpdatedAt(LocalDateTime.now());
+        persistSettings(settings);
+        return settings;
     }
 }

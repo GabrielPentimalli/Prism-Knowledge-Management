@@ -157,6 +157,43 @@ small {
     min-width: 0;
 }
 
+.workspace-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    width: fit-content;
+}
+
+.workspace-nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 88px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease;
+}
+
+.workspace-nav-link:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.workspace-nav-link.active {
+    background: var(--primary-soft);
+    color: var(--primary);
+}
+
 .panel {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -595,6 +632,12 @@ form button[type="submit"] {
 .row-inline > button {
     flex: 0 0 auto;
     white-space: nowrap;
+    margin-top: 0;
+    min-height: 42px;
+}
+
+.row-inline > button[type="submit"] {
+    margin-top: 0;
 }
 
 ul {
@@ -864,21 +907,31 @@ pre {
 
 .viewer-mode-toggle {
     display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
+    border-radius: 999px;
     background: var(--bg-elevated);
 }
 
 .viewer-mode-toggle button {
-    padding: 6px 12px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     background: transparent;
     border: none;
     color: var(--muted);
-    border-radius: 0;
+    border-radius: 999px;
     box-shadow: none;
-    font-size: 0.8rem;
-    font-weight: 500;
+    min-height: 36px;
+}
+
+.viewer-mode-toggle button svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    flex: 0 0 auto;
 }
 
 .viewer-mode-toggle button:hover:not(:disabled) {
@@ -1247,8 +1300,15 @@ pre {
 
 /* ─── Document viewer pages ──────────────────────────── */
 
+.viewer-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-style: italic;
+}
+
 .page-section {
-    margin-bottom: 18px;
+    margin-bottom: 14px;
     border: 1px solid var(--border-soft);
     border-radius: var(--radius-sm);
     background: var(--surface);
@@ -1270,24 +1330,71 @@ pre {
 }
 
 .page-section-header {
-    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
     background: var(--bg-elevated);
     border-bottom: 1px solid var(--border-soft);
+}
+
+.page-num-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 24px;
+    padding: 0 9px;
+    background: var(--primary-strong);
+    color: #fff;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+}
+
+.page-num-label {
+    color: var(--text);
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.page-num-of {
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: 2px;
+}
+
+.page-section-meta {
+    margin-left: auto;
     color: var(--muted);
     font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-weight: 500;
 }
 
 .page-section-body {
-    padding: 16px 18px;
+    padding: 20px 24px;
     color: var(--text-secondary);
-    font-size: 0.92rem;
-    line-height: 1.7;
-    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-height: 1.75;
     word-break: break-word;
     overflow-wrap: anywhere;
+}
+
+.page-section-body p {
+    margin: 0 0 14px 0;
+}
+
+.page-section-body p:last-child {
+    margin-bottom: 0;
+}
+
+.page-section-empty {
+    margin: 0;
+    color: var(--muted);
+    font-style: italic;
+    text-align: center;
 }
 
 /* ─── CTA smaller variant ────────────────────────────── */
@@ -1313,5 +1420,16 @@ pre {
 @media (max-width: 960px) {
     .workspace-grid {
         grid-template-columns: 1fr;
+    }
+
+    .workspace-nav {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .workspace-nav-link {
+        width: 100%;
+        min-width: 0;
     }
 }

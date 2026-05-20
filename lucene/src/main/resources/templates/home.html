@@ -30,7 +30,9 @@
         <div class="panel-body">
             <form id="create-vault-form" class="row-inline" style="margin-bottom: 14px;">
                 <input id="vault-name" type="text" placeholder="Nome del nuovo vault" required>
-                <button type="submit">Crea vault</button>
+                <button type="submit" title="Crea vault" aria-label="Crea vault">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
             </form>
             <div id="vault-list" data-page-size="5">
                 <div th:if="${#lists.isEmpty(vaults)}" class="muted">Nessun vault. Creane uno per iniziare.</div>
@@ -42,8 +44,10 @@
                         </div>
                     </div>
                     <div style="display:flex;gap:6px;">
-                        <a class="cta cta-small" th:href="@{'/workspace/vault?vaultId=' + ${vault.id}}">Apri</a>
-                        <button class="danger delete-vault-btn" th:data-vault-id="${vault.id}" th:data-vault-name="${vault.name}">Elimina</button>
+                        <a class="cta cta-small" th:href="@{/workspace/vault/documents(vaultId=${vault.id})}">Apri</a>
+                        <button class="danger delete-vault-btn" th:data-vault-id="${vault.id}" th:data-vault-name="${vault.name}" title="Elimina vault" aria-label="Elimina vault">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -72,12 +76,14 @@
 <footer th:replace="~{fragments/footer :: footer}"></footer>
 <script th:src="@{/js/ui.js}"></script>
 <script>
+const t = (key, params = {}, fallback = key) => window.PrismI18n?.t(key, params, fallback) || fallback;
+
 document.getElementById('create-vault-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const input = document.getElementById('vault-name');
     const name = input.value.trim();
     if (!name) return;
-    const progress = window.PrismToast?.progress('Creazione vault...');
+    const progress = window.PrismToast?.progress(t('home.creatingVault', {}, 'Creazione vault...'));
     try {
         const res = await fetch('/api/vaults', {
             method: 'POST',
@@ -86,10 +92,10 @@ document.getElementById('create-vault-form').addEventListener('submit', async (e
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        progress?.update(`Vault "${name}" creato`, 'success');
-        setTimeout(() => { window.location.href = `/workspace/vault?vaultId=${encodeURIComponent(data.id)}`; }, 600);
+        progress?.update(t('home.vaultCreated', {name}, `Vault "${name}" creato`), 'success');
+        setTimeout(() => { window.location.href = `/workspace/vault/documents?vaultId=${encodeURIComponent(data.id)}`; }, 600);
     } catch (e) {
-        progress?.update(`Errore: ${e.message}`, 'error');
+        progress?.update(`${t('common.errorPrefix', {}, 'Errore')}: ${e.message}`, 'error');
         setTimeout(() => progress?.close(), 4000);
     }
 });
@@ -117,20 +123,28 @@ document.getElementById('create-vault-form').addEventListener('submit', async (e
         navEl.innerHTML = '';
         if (totalPages <= 1) { navEl.style.display = 'none'; return; }
         navEl.style.display = '';
-        const mkBtn = (label, page, opts = {}) => {
+        const ICON_PREV = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+        const ICON_NEXT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+        const mkBtn = (content, page, opts = {}) => {
             const b = document.createElement('button');
             b.type = 'button';
-            b.textContent = label;
+            if (opts.html) {
+                b.innerHTML = content;
+                b.title = opts.title || '';
+                b.setAttribute('aria-label', opts.title || '');
+            } else {
+                b.textContent = content;
+            }
             b.className = opts.active ? 'page-btn active' : 'page-btn';
             if (opts.disabled) b.disabled = true;
             b.addEventListener('click', () => showPage(page));
             return b;
         };
-        navEl.appendChild(mkBtn('Precedente', current - 1, { disabled: current === 1 }));
+        navEl.appendChild(mkBtn(ICON_PREV, current - 1, { disabled: current === 1, html: true, title: t('common.previous', {}, 'Precedente') }));
         for (let i = 1; i <= totalPages; i++) {
             navEl.appendChild(mkBtn(String(i), i, { active: i === current }));
         }
-        navEl.appendChild(mkBtn('Successiva', current + 1, { disabled: current === totalPages }));
+        navEl.appendChild(mkBtn(ICON_NEXT, current + 1, { disabled: current === totalPages, html: true, title: t('common.next', {}, 'Successiva') }));
     };
 
     showPage(1);
@@ -140,15 +154,15 @@ document.querySelectorAll('.delete-vault-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
         const id = btn.dataset.vaultId;
         const name = btn.dataset.vaultName;
-        if (!confirm(`Eliminare il vault "${name}"? I documenti restano disponibili.`)) return;
-        const progress = window.PrismToast?.progress(`Eliminazione "${name}"...`);
+        if (!confirm(t('home.deleteVaultConfirm', {name}, `Eliminare il vault "${name}"? I documenti restano disponibili.`))) return;
+        const progress = window.PrismToast?.progress(t('home.deletingVault', {name}, `Eliminazione "${name}"...`));
         try {
             const res = await fetch(`/api/vaults/${encodeURIComponent(id)}`, {method: 'DELETE'});
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            progress?.update(`Vault "${name}" eliminato`, 'success');
+            progress?.update(t('home.vaultDeleted', {name}, `Vault "${name}" eliminato`), 'success');
             setTimeout(() => window.location.reload(), 700);
         } catch (e) {
-            progress?.update(`Errore: ${e.message}`, 'error');
+            progress?.update(`${t('common.errorPrefix', {}, 'Errore')}: ${e.message}`, 'error');
             setTimeout(() => progress?.close(), 4000);
         }
     });

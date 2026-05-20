@@ -29,8 +29,12 @@
                 <div class="muted" id="doc-meta"></div>
             </div>
             <div class="viewer-mode-toggle" id="viewer-mode-toggle">
-                <button data-mode="pages" class="active">Pagine</button>
-                <button data-mode="source">Sorgente</button>
+                <button data-mode="pages" class="active" title="Pagine" aria-label="Pagine">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </button>
+                <button data-mode="source" title="Sorgente" aria-label="Sorgente">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                </button>
             </div>
         </div>
         <div class="panel-body" id="viewer-host"></div>

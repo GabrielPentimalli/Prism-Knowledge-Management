@@ -30,7 +30,9 @@
             <form id="global-search-form">
                 <div class="row-inline">
                     <input id="query" type="text" placeholder="Cerca nei documenti indicizzati..." required autofocus>
-                    <button type="submit">Cerca</button>
+                    <button type="submit" title="Cerca" aria-label="Cerca">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                    </button>
                 </div>
 
                 <details class="collapsible" style="margin: 14px -20px -16px -20px;">
@@ -82,6 +84,7 @@
 <script th:src="@{/js/ui.js}"></script>
 <script>
 const escapeHtml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const t = (key, params = {}, fallback = key) => window.PrismI18n?.t(key, params, fallback) || fallback;
 
 const groupByDocument = (hits) => {
     const map = new Map();
@@ -116,34 +119,39 @@ document.getElementById('global-search-form').addEventListener('submit', async (
     const root = document.getElementById('global-results');
     const meta = document.getElementById('results-meta');
     panel.style.display = '';
-    root.innerHTML = '<p class="muted">Ricerca locale in corso...</p>';
+    root.innerHTML = `<p class="muted">${escapeHtml(t('search.localRunning', {}, 'Ricerca locale in corso...'))}</p>`;
     meta.textContent = '—';
 
     try {
         const res = await fetch(`/api/search/global?${params.toString()}`);
         const data = await res.json();
         const grouped = groupByDocument(data.hits || []);
-        meta.textContent = `${grouped.length} document${grouped.length === 1 ? 'o' : 'i'} · ${data.total || 0} occorrenze`;
+        const isEn = (window.PrismI18n?.getLanguage?.() || 'it') === 'en';
+        const docSuffix = grouped.length === 1 ? (isEn ? '' : 'o') : (isEn ? 's' : 'i');
+        meta.textContent = t('search.resultsMeta', {docs: grouped.length, i: docSuffix, total: data.total || 0}, `${grouped.length} document${docSuffix} · ${data.total || 0} occorrenze`);
         root.innerHTML = '';
         if (grouped.length === 0) {
-            root.innerHTML = '<p class="muted">Nessun risultato trovato.</p>';
+            root.innerHTML = `<p class="muted">${escapeHtml(t('search.noResults', {}, 'Nessun risultato trovato.'))}</p>`;
             return;
         }
         grouped.forEach(group => {
             const card = document.createElement('div');
             card.className = 'doc-result-card';
             const best = group.hits[0];
+            const occurrenceLabel = group.hits.length === 1
+                ? t('search.oneOccurrence', {}, 'occorrenza')
+                : t('search.manyOccurrences', {}, 'occorrenze');
             card.innerHTML = `
                 <a class="doc-result-main" href="/document/${encodeURIComponent(group.docId)}" target="_blank" rel="noopener">
                     <div class="doc-result-head">
                         <strong>${escapeHtml(group.docName)}</strong>
                         <span class="badge badge-muted">${escapeHtml(group.fileType)}</span>
-                        <span class="badge badge-success">${group.hits.length} occorrenz${group.hits.length === 1 ? 'a' : 'e'}</span>
+                        <span class="badge badge-success">${group.hits.length} ${escapeHtml(occurrenceLabel)}</span>
                     </div>
                     <div class="doc-result-snippet">${escapeHtml(best.snippet)}</div>
                 </a>
                 <details class="doc-result-more">
-                    <summary>Mostra tutte le occorrenze</summary>
+                    <summary>${escapeHtml(t('search.showAllOccurrences', {}, 'Mostra tutte le occorrenze'))}</summary>
                     <div class="doc-result-hits"></div>
                 </details>
             `;
@@ -155,7 +163,7 @@ document.getElementById('global-search-form').addEventListener('submit', async (
                 item.rel = 'noopener';
                 item.href = `/document/${encodeURIComponent(h.docId)}#page-${encodeURIComponent(h.page)}`;
                 item.innerHTML = `
-                    <div class="meta">Pagina <strong>${escapeHtml(h.page)}</strong></div>
+                    <div class="meta">${escapeHtml(t('search.page', {}, 'Pagina'))} <strong>${escapeHtml(h.page)}</strong></div>
                     <div>${escapeHtml(h.snippet)}</div>
                 `;
                 hitsHost.appendChild(item);
@@ -163,7 +171,7 @@ document.getElementById('global-search-form').addEventListener('submit', async (
             root.appendChild(card);
         });
     } catch (e) {
-        root.innerHTML = `<p class="error-text">Errore ricerca: ${escapeHtml(e.message)}</p>`;
+        root.innerHTML = `<p class="error-text">${escapeHtml(t('search.error', {}, 'Errore ricerca'))}: ${escapeHtml(e.message)}</p>`;
     }
 });
 </script>
