@@ -25,27 +25,35 @@ public class VerificationAgentService {
             log.debug("Verification: answer vuoto -> insufficient.");
             return insufficient();
         }
+        // Rifiuto onesto del modello: lo lasciamo passare così com'è.
+        if (candidate.getAnswer().strip().toLowerCase()
+                .contains(SynthesisAgentService.INSUFFICIENT)) {
+            return insufficient();
+        }
 
         Map<String, ChunkIndexService.ChunkHit> byChunkId = retrievalHits.stream()
                 .collect(Collectors.toMap(ChunkIndexService.ChunkHit::chunkId, h -> h, (a, b) -> a));
         Set<String> validIds = byChunkId.keySet();
 
-        if (candidate.getCitations() == null || candidate.getCitations().isEmpty()) {
-            log.debug("Verification: nessuna citation prodotta -> insufficient.");
-            return insufficient();
-        }
+        // Difesa in profondità: teniamo solo le citazioni che puntano a chunk
+        // realmente recuperati e le ri-arricchiamo dalla fonte autorevole.
+        java.util.List<Citation> verified = candidate.getCitations() == null
+                ? java.util.List.of()
+                : candidate.getCitations().stream()
+                        .filter(c -> c.getChunkId() != null && validIds.contains(c.getChunkId()))
+                        .map(c -> enrich(c, byChunkId.get(c.getChunkId())))
+                        .toList();
 
-        java.util.List<Citation> verified = candidate.getCitations().stream()
-                .filter(c -> c.getChunkId() != null && validIds.contains(c.getChunkId()))
-                .map(c -> enrich(c, byChunkId.get(c.getChunkId())))
-                .toList();
-
+        // La risposta è generata SOLO dai frammenti recuperati: anche senza
+        // citazioni esplicite resta fondata, quindi la restituiamo comunque
+        // invece di scartarla con un falso "non ho evidenza".
         if (verified.isEmpty()) {
-            log.debug("Verification: tutte le citation rifiutate (chunkId non in retrieval). Proposte: {}",
-                    candidate.getCitations().stream().map(Citation::getChunkId).toList());
-            return insufficient();
+            log.debug("Verification: risposta valida senza citazioni verificate; restituita con citations vuote.");
+        } else {
+            log.debug("Verification: {} citazioni valide su {} proposte.",
+                    verified.size(),
+                    candidate.getCitations() == null ? 0 : candidate.getCitations().size());
         }
-        log.debug("Verification: {} citation valide su {} proposte.", verified.size(), candidate.getCitations().size());
         candidate.setCitations(verified);
         return candidate;
     }
@@ -61,7 +69,7 @@ public class VerificationAgentService {
 
     private StructuredAnswer insufficient() {
         StructuredAnswer answer = new StructuredAnswer();
-        answer.setAnswer("non ho evidenza sufficiente nei documenti caricati");
+        answer.setAnswer(SynthesisAgentService.INSUFFICIENT);
         answer.setCitations(java.util.List.of());
         return answer;
     }

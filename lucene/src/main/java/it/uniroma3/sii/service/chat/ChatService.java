@@ -20,6 +20,7 @@ public class ChatService {
     private final RetrievalAgentService retrievalAgent;
     private final SynthesisAgentService synthesisAgent;
     private final VerificationAgentService verificationAgent;
+    private final QueryRewriteService queryRewriteService;
     private final ChatSessionRepository chatSessionRepository;
     private final PrivacyLogService privacyLogService;
 
@@ -27,11 +28,13 @@ public class ChatService {
             RetrievalAgentService retrievalAgent,
             SynthesisAgentService synthesisAgent,
             VerificationAgentService verificationAgent,
+            QueryRewriteService queryRewriteService,
             ChatSessionRepository chatSessionRepository,
             PrivacyLogService privacyLogService) {
         this.retrievalAgent = retrievalAgent;
         this.synthesisAgent = synthesisAgent;
         this.verificationAgent = verificationAgent;
+        this.queryRewriteService = queryRewriteService;
         this.chatSessionRepository = chatSessionRepository;
         this.privacyLogService = privacyLogService;
     }
@@ -40,6 +43,12 @@ public class ChatService {
         validateScope(request);
 
         PersistentChatSession session = resolveSession(request);
+
+        // Cronologia PRIMA di aggiungere il messaggio corrente: serve per
+        // risolvere i follow-up ("approfondisci", "e il secondo?") sia nel
+        // retrieval sia nella sintesi.
+        List<ChatMessage> priorHistory = List.copyOf(session.getMessages());
+
         ChatMessage userMessage = ChatMessage.builder()
                 .role("user")
                 .content(request.getMessage())
@@ -48,8 +57,13 @@ public class ChatService {
                 .build();
         session.getMessages().add(userMessage);
 
-        var retrieved = retrievalAgent.retrieve(request.getScopeType(), request.getScopeId(), request.getMessage());
-        StructuredAnswer synthesized = synthesisAgent.synthesize(request.getMessage(), retrieved);
+        String historyText = renderHistory(priorHistory);
+        // Espande il follow-up in una domanda autonoma usando la conversazione.
+        String standaloneQuestion = queryRewriteService.rewrite(historyText, request.getMessage());
+        String retrievalQuery = buildRetrievalQuery(priorHistory, standaloneQuestion);
+
+        var retrieved = retrievalAgent.retrieve(request.getScopeType(), request.getScopeId(), retrievalQuery);
+        StructuredAnswer synthesized = synthesisAgent.synthesize(historyText, standaloneQuestion, retrieved);
         StructuredAnswer verified = verificationAgent.verify(synthesized, retrieved);
 
         ChatMessage assistantMessage = ChatMessage.builder()
@@ -90,6 +104,59 @@ public class ChatService {
         return chatSessionRepository.findById(sessionId)
                 .map(PersistentChatSession::getMessages)
                 .orElse(List.of());
+    }
+
+    // Per i follow-up la sola frase corrente (es. "approfondisci") non ha
+    // sufficiente sovrapposizione lessicale con i chunk: arricchiamo la query
+    // di retrieval con i turni recenti (le risposte precedenti contengono i
+    // termini tematici utili al match BM25).
+    private static final int RETRIEVAL_CONTEXT_TURNS = 4;
+    private static final int HISTORY_TURNS = 6;
+    private static final int MSG_CHAR_CAP = 600;
+
+    private String buildRetrievalQuery(List<ChatMessage> priorHistory, String current) {
+        StringBuilder sb = new StringBuilder();
+        int from = Math.max(0, priorHistory.size() - RETRIEVAL_CONTEXT_TURNS);
+        for (int i = from; i < priorHistory.size(); i++) {
+            ChatMessage m = priorHistory.get(i);
+            if (isUsableContext(m)) {
+                sb.append(cap(m.getContent())).append(' ');
+            }
+        }
+        sb.append(current);
+        return sb.toString();
+    }
+
+    private String renderHistory(List<ChatMessage> priorHistory) {
+        if (priorHistory.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        int from = Math.max(0, priorHistory.size() - HISTORY_TURNS);
+        for (int i = from; i < priorHistory.size(); i++) {
+            ChatMessage m = priorHistory.get(i);
+            if (m.getContent() == null || m.getContent().isBlank()) {
+                continue;
+            }
+            String who = "assistant".equals(m.getRole()) ? "Assistente" : "Utente";
+            sb.append(who).append(": ").append(cap(m.getContent())).append('\n');
+        }
+        return sb.toString().strip();
+    }
+
+    // Esclude dal contesto di retrieval i rifiuti precedenti, che non
+    // aggiungono termini tematici utili.
+    private boolean isUsableContext(ChatMessage m) {
+        if (m.getContent() == null || m.getContent().isBlank()) {
+            return false;
+        }
+        return !m.getContent().strip().toLowerCase()
+                .contains(SynthesisAgentService.INSUFFICIENT);
+    }
+
+    private String cap(String s) {
+        String t = s.strip();
+        return t.length() <= MSG_CHAR_CAP ? t : t.substring(0, MSG_CHAR_CAP);
     }
 
     private PersistentChatSession resolveSession(ChatRequest request) {

@@ -157,23 +157,33 @@ small {
     min-width: 0;
 }
 
+/* La pagina vault è una griglia alta quanto il viewport (flex:1); senza questo
+   le righe auto si allungano per riempire lo spazio libero e gonfiano in
+   verticale il toggle in base alla quantità di contenuto (n. documenti/vista). */
+.workspace-page {
+    align-content: start;
+}
+
 .workspace-nav {
-    display: inline-flex;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     align-items: center;
+    justify-self: start;
     gap: 4px;
     padding: 4px;
     border-radius: var(--radius-sm);
     background: var(--bg-elevated);
     border: 1px solid var(--border);
-    width: fit-content;
+    width: 240px;
+    max-width: 100%;
 }
 
 .workspace-nav-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: auto;
-    min-width: 88px;
+    width: 100%;
+    min-width: 0;
     padding: 8px 14px;
     border-radius: 6px;
     color: var(--text-secondary);
@@ -1421,15 +1431,6 @@ pre {
     .workspace-grid {
         grid-template-columns: 1fr;
     }
-
-    .workspace-nav {
-        width: 100%;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .workspace-nav-link {
-        width: 100%;
-        min-width: 0;
-    }
+    /* Il toggle resta a larghezza fissa (240px) anche su schermi piccoli:
+       così non dipende dalla scrollbar/altezza pagina né dalla vista. */
 }

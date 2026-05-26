@@ -337,6 +337,47 @@
                 else { Toast.error(t('chat.removeError', { status: r.status }, `Errore rimozione (HTTP ${r.status})`)); }
             });
         });
+
+        const navEl = document.getElementById('vault-doc-pagination');
+        if (navEl) {
+            const PAGE_SIZE = 5;
+            const cards = Array.from(grid.querySelectorAll('.doc-card'));
+            const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
+            let currentPage = 1;
+
+            const showPage = (p) => {
+                currentPage = Math.max(1, Math.min(totalPages, p));
+                cards.forEach((el, i) => {
+                    el.style.display = (Math.floor(i / PAGE_SIZE) === currentPage - 1) ? '' : 'none';
+                });
+                renderPagination();
+            };
+
+            const renderPagination = () => {
+                navEl.innerHTML = '';
+                if (totalPages <= 1) { navEl.style.display = 'none'; return; }
+                navEl.style.display = '';
+                const ICON_PREV = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+                const ICON_NEXT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+                const mkBtn = (content, page, opts = {}) => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    if (opts.html) { b.innerHTML = content; b.title = opts.title || ''; b.setAttribute('aria-label', opts.title || ''); }
+                    else { b.textContent = content; }
+                    b.className = opts.active ? 'page-btn active' : 'page-btn';
+                    if (opts.disabled) b.disabled = true;
+                    b.addEventListener('click', () => showPage(page));
+                    return b;
+                };
+                navEl.appendChild(mkBtn(ICON_PREV, currentPage - 1, { disabled: currentPage === 1, html: true, title: t('common.previous', {}, 'Precedente') }));
+                for (let i = 1; i <= totalPages; i++) {
+                    navEl.appendChild(mkBtn(String(i), i, { active: i === currentPage }));
+                }
+                navEl.appendChild(mkBtn(ICON_NEXT, currentPage + 1, { disabled: currentPage === totalPages, html: true, title: t('common.next', {}, 'Successiva') }));
+            };
+
+            showPage(1);
+        }
     };
 
     const badgeForStatus = (status) => {

@@ -62,14 +62,17 @@
             <span class="meta" th:text="${#lists.size(recentDocuments)} + ' totali'">0 totali</span>
         </summary>
         <div class="collapsible-body">
-            <div th:if="${#lists.isEmpty(recentDocuments)}" class="muted">Nessun documento caricato.</div>
-            <div th:each="doc : ${recentDocuments}" class="result-card">
-                <div style="flex: 1;">
-                    <strong th:text="${doc.name}">Documento</strong>
-                    <div class="meta" th:text="${doc.type}">PDF</div>
+            <div id="doc-list" data-page-size="5">
+                <div th:if="${#lists.isEmpty(recentDocuments)}" class="muted">Nessun documento caricato.</div>
+                <div th:each="doc : ${recentDocuments}" class="result-card doc-item">
+                    <div style="flex: 1;">
+                        <strong th:text="${doc.name}">Documento</strong>
+                        <div class="meta" th:text="${doc.type}">PDF</div>
+                    </div>
+                    <a class="cta cta-small" th:href="@{'/document/' + ${doc.id}}" target="_blank">Apri</a>
                 </div>
-                <a class="cta cta-small" th:href="@{'/document/' + ${doc.id}}" target="_blank">Apri</a>
             </div>
+            <nav class="pagination" id="doc-pagination"></nav>
         </div>
     </details>
 </main>
@@ -107,6 +110,56 @@ document.getElementById('create-vault-form').addEventListener('submit', async (e
     if (!listEl || !navEl) return;
     const pageSize = parseInt(listEl.dataset.pageSize || '5', 10);
     const items = Array.from(listEl.querySelectorAll('.vault-item'));
+    if (items.length === 0) { navEl.style.display = 'none'; return; }
+    const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+    let current = 1;
+
+    const showPage = (p) => {
+        current = Math.max(1, Math.min(totalPages, p));
+        items.forEach((el, i) => {
+            el.style.display = (Math.floor(i / pageSize) === current - 1) ? '' : 'none';
+        });
+        renderNav();
+    };
+
+    const renderNav = () => {
+        navEl.innerHTML = '';
+        if (totalPages <= 1) { navEl.style.display = 'none'; return; }
+        navEl.style.display = '';
+        const ICON_PREV = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+        const ICON_NEXT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+        const mkBtn = (content, page, opts = {}) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            if (opts.html) {
+                b.innerHTML = content;
+                b.title = opts.title || '';
+                b.setAttribute('aria-label', opts.title || '');
+            } else {
+                b.textContent = content;
+            }
+            b.className = opts.active ? 'page-btn active' : 'page-btn';
+            if (opts.disabled) b.disabled = true;
+            b.addEventListener('click', () => showPage(page));
+            return b;
+        };
+        navEl.appendChild(mkBtn(ICON_PREV, current - 1, { disabled: current === 1, html: true, title: t('common.previous', {}, 'Precedente') }));
+        for (let i = 1; i <= totalPages; i++) {
+            navEl.appendChild(mkBtn(String(i), i, { active: i === current }));
+        }
+        navEl.appendChild(mkBtn(ICON_NEXT, current + 1, { disabled: current === totalPages, html: true, title: t('common.next', {}, 'Successiva') }));
+    };
+
+    showPage(1);
+})();
+
+// ─── Document pagination ───────────────────────────────────────
+(() => {
+    const listEl = document.getElementById('doc-list');
+    const navEl = document.getElementById('doc-pagination');
+    if (!listEl || !navEl) return;
+    const pageSize = parseInt(listEl.dataset.pageSize || '5', 10);
+    const items = Array.from(listEl.querySelectorAll('.doc-item'));
     if (items.length === 0) { navEl.style.display = 'none'; return; }
     const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
     let current = 1;

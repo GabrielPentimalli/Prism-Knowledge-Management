@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PRISM | Onboarding</title>
+    <title>PRISM</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
@@ -16,10 +16,9 @@
             <h1>Benvenuto in PRISM</h1>
         </div>
         <div class="panel-body">
-            <p>PRISM è un knowledge manager <strong>local-first</strong>: i tuoi documenti, i tuoi indici e le tue chat restano sempre sul tuo dispositivo.</p>
-            <div id="system-status" class="status-box">Controllo requisiti locali...</div>
+            <p>PRISM è un knowledge manager <strong>local-first</strong>: i tuoi documenti e le tue chat restano sempre sul tuo dispositivo.</p>
             <form id="onboarding-form">
-                <label for="dataRoot">Cartella dati locale</label>
+                <label for="dataRoot">Path locale</label>
                 <input id="dataRoot" name="dataRoot" type="text" placeholder="/Users/you/PRISM-data" required>
 
                 <label for="llmModel">Modello LLM locale</label>
@@ -28,13 +27,7 @@
                 <label for="llmBaseUrl">Endpoint LLM locale</label>
                 <input id="llmBaseUrl" name="llmBaseUrl" type="text" value="http://localhost:11434/v1" required>
 
-                <label for="language-display">Lingua interfaccia</label>
-                <input id="language-display" type="text" value="Italiano" disabled>
-                <input id="language" name="language" type="hidden" value="it">
-
-                <button type="submit" style="margin-top: 18px; width: 100%;" title="Inizializza PRISM locale" aria-label="Inizializza PRISM locale">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
-                </button>
+                <button type="submit" style="margin-top: 18px; width: 100%;" title="Inizializza PRISM locale" aria-label="Inizializza PRISM locale">CONFERMA</button>
             </form>
             <div id="onboarding-error" class="error-text" style="margin-top: 12px;"></div>
         </div>
@@ -47,10 +40,6 @@ const t = (key, params = {}, fallback = key) => window.PrismI18n?.t(key, params,
 async function loadStatus() {
     const res = await fetch('/api/system/status');
     const status = await res.json();
-    const box = document.getElementById('system-status');
-    const diskCls = status.diskOk ? 'badge-success' : 'badge-danger';
-    const modelCls = status.modelAvailable ? 'badge-success' : 'badge-danger';
-    box.innerHTML = `<span class="badge ${diskCls}">${t('onboarding.disk', {}, 'Disco')}</span> <strong>${t('onboarding.freeMb', {mb: status.freeDiskMb}, `${status.freeDiskMb} MB liberi`)}</strong> &nbsp;·&nbsp; <span class="badge ${modelCls}">${t('onboarding.model', {}, 'Modello')}</span> <strong>${status.modelAvailable ? t('onboarding.available', {}, 'disponibile') : t('onboarding.unreachable', {}, 'non raggiungibile')}</strong>`;
     document.getElementById('dataRoot').value = status.dataRoot || '';
 }
 
@@ -67,7 +56,6 @@ document.getElementById('onboarding-form').addEventListener('submit', async (eve
         document.getElementById('onboarding-error').textContent = data.error || t('onboarding.error', {}, 'Errore onboarding');
         return;
     }
-    window.PrismI18n?.setLanguage(payload.language);
     window.location.href = '/home';
 });
 

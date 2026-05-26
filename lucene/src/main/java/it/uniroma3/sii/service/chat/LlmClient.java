@@ -48,13 +48,68 @@ public class LlmClient {
     }
 
     public String chat(String systemPrompt, String userMessage) {
-        Map<String, Object> body = Map.of(
+        return chat(systemPrompt, userMessage, false);
+    }
+
+    /**
+     * Variante con possibilità di forzare l'output in JSON.
+     * I modelli locali piccoli rispettano lo schema in modo molto più affidabile
+     * quando si imposta response_format=json_object (supportato dall'API
+     * OpenAI-compatible di Ollama).
+     */
+    public String chat(String systemPrompt, String userMessage, boolean jsonMode) {
+        Map<String, Object> messages = Map.of(
                 "model", model,
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user",   "content", userMessage)
                 )
         );
+        Map<String, Object> body = jsonMode
+                ? withJsonFormat(messages)
+                : messages;
+
+        return webClient.post()
+                .uri("/chat/completions")
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(JsonNode.class)
+                .map(resp -> resp.at("/choices/0/message/content").asText())
+                .block();
+    }
+
+    private Map<String, Object> withJsonFormat(Map<String, Object> base) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>(base);
+        body.put("response_format", Map.of("type", "json_object"));
+        body.put("temperature", 0);
+        return body;
+    }
+
+    /**
+     * Chiamata con structured output vincolato a uno schema JSON (strict).
+     * I modelli locali piccoli, vincolati allo schema, smettono di inventare
+     * nomi di campo arbitrari e rispettano la forma richiesta.
+     *
+     * @param schemaName nome logico dello schema
+     * @param schema     schema JSON (mappa con type/properties/required/...)
+     */
+    public String chatStructured(String systemPrompt, String userMessage,
+                                 String schemaName, Map<String, Object> schema) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("model", model);
+        body.put("temperature", 0);
+        body.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user",   "content", userMessage)
+        ));
+        body.put("response_format", Map.of(
+                "type", "json_schema",
+                "json_schema", Map.of(
+                        "name", schemaName,
+                        "strict", true,
+                        "schema", schema
+                )
+        ));
 
         return webClient.post()
                 .uri("/chat/completions")

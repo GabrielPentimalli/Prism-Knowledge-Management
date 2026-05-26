@@ -22,7 +22,7 @@
         </a>
     </nav>
 </header>
-<main class="page" style="max-width: 1080px;">
+<main class="page workspace-page" style="max-width: 1080px;">
     <nav class="workspace-nav" aria-label="Sezioni vault">
         <a class="workspace-nav-link active" th:href="@{/workspace/vault/documents(vaultId=${vaultId})}">Documenti</a>
         <a class="workspace-nav-link" th:href="@{/workspace/vault/chat(vaultId=${vaultId})}">Chat</a>
@@ -47,6 +47,7 @@
                 </form>
 
                 <div id="vault-doc-list" style="margin-top: 16px;"></div>
+                <nav class="pagination" id="vault-doc-pagination" style="display:none;"></nav>
             </div>
         </div>
     </section>
