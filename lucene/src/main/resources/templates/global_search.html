@@ -48,6 +48,9 @@
                                     <option value="">Tutti</option>
                                     <option value="PDF">PDF</option>
                                     <option value="HTML">HTML</option>
+                                    <option value="DOCX">Word (DOCX)</option>
+                                    <option value="MARKDOWN">Markdown</option>
+                                    <option value="TXT">Testo (TXT, CSV, JSON…)</option>
                                 </select>
                             </div>
                             <div>
@@ -58,12 +61,16 @@
                                 </select>
                             </div>
                             <div>
-                                <label for="addedAfter">Dopo</label>
-                                <input id="addedAfter" type="date">
+                                <label for="fileName">Nome documento</label>
+                                <input id="fileName" type="text" placeholder="Contiene...">
                             </div>
                             <div>
-                                <label for="addedBefore">Prima</label>
-                                <input id="addedBefore" type="date">
+                                <label for="minSizeKb">Dimensione min (KB)</label>
+                                <input id="minSizeKb" type="number" min="0" step="1" placeholder="0">
+                            </div>
+                            <div>
+                                <label for="maxSizeKb">Dimensione max (KB)</label>
+                                <input id="maxSizeKb" type="number" min="0" step="1" placeholder="∞">
                             </div>
                         </div>
                     </div>
@@ -110,8 +117,8 @@ document.getElementById('global-search-form').addEventListener('submit', async (
 
     const params = new URLSearchParams();
     params.set('q', query);
-    ['fileType', 'vaultId', 'addedAfter', 'addedBefore'].forEach(id => {
-        const value = document.getElementById(id).value;
+    ['fileType', 'vaultId', 'fileName', 'minSizeKb', 'maxSizeKb'].forEach(id => {
+        const value = document.getElementById(id).value.trim();
         if (value) params.set(id, value);
     });
 

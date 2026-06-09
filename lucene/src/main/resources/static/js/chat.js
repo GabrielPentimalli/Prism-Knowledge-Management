@@ -32,7 +32,9 @@
     const scrollToBottom = () => { if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight; };
 
     // ─── Chat rendering ────────────────────────────────────────────
-    const renderMessage = (role, text, citations = []) => {
+    // Le citazioni NON vengono mostrate sotto la bolla del messaggio: vivono
+    // solo nel pannello "Citazioni" (renderCitationLinks) per evitare duplicati.
+    const renderMessage = (role, text) => {
         if (!chatWindow) return;
         const wrap = document.createElement('div');
         wrap.className = `message ${role === 'user' ? 'user' : 'bot'}`;
@@ -41,12 +43,6 @@
         const p = document.createElement('p');
         p.textContent = text || '';
         bubble.appendChild(p);
-        if (citations && citations.length > 0) {
-            const list = document.createElement('div');
-            list.className = 'citation-list';
-            citations.forEach((c, idx) => list.appendChild(buildCitationChip(c, idx)));
-            bubble.appendChild(list);
-        }
         wrap.appendChild(bubble);
         chatWindow.appendChild(wrap);
         scrollToBottom();
@@ -120,7 +116,11 @@
         const res = await fetch(`/api/chat/${encodeURIComponent(sessionId)}/history`);
         if (res.ok) {
             const messages = await res.json();
-            messages.forEach((m) => renderMessage(m.role, m.content, m.citations || []));
+            messages.forEach((m) => renderMessage(m.role, m.content));
+            // Mostra nel pannello le citazioni dell'ultima risposta dell'assistente.
+            const lastWithCitations = [...messages].reverse()
+                .find((m) => m.role === 'assistant' && (m.citations || []).length > 0);
+            if (lastWithCitations) renderCitationLinks(lastWithCitations.citations);
         }
         renderSessionList();
     };
@@ -172,7 +172,7 @@
             return;
         }
 
-        renderMessage('user', text, []);
+        renderMessage('user', text);
         userInput.value = '';
         userInput.disabled = true;
         if (sendBtn) sendBtn.disabled = true;
@@ -189,12 +189,12 @@
             if (!res.ok) throw new Error(data.error || t('chat.httpError', { status: res.status }, `Errore HTTP ${res.status}`));
             activeSessionId = data.sessionId;
             localStorage.setItem(scopeSessionKey(), activeSessionId);
-            renderMessage('assistant', data.answer || t('chat.noAnswer', {}, 'Nessuna risposta.'), data.citations || []);
+            renderMessage('assistant', data.answer || t('chat.noAnswer', {}, 'Nessuna risposta.'));
             renderCitationLinks(data.citations || []);
             renderSessionList();
         } catch (e) {
             if (loadingEl) loadingEl.remove();
-            renderMessage('assistant', t('chat.localError', { message: e.message }, `Errore locale: ${e.message}`), []);
+            renderMessage('assistant', t('chat.localError', { message: e.message }, `Errore locale: ${e.message}`));
             Toast.error(e.message);
         } finally {
             userInput.disabled = false;

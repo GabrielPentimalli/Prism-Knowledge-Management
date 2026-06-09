@@ -1,5 +1,8 @@
 package it.uniroma3.sii.service.chat;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,12 +40,18 @@ public class VerificationAgentService {
 
         // Difesa in profondità: teniamo solo le citazioni che puntano a chunk
         // realmente recuperati e le ri-arricchiamo dalla fonte autorevole.
-        java.util.List<Citation> verified = candidate.getCitations() == null
-                ? java.util.List.of()
+        List<Citation> enriched = candidate.getCitations() == null
+                ? List.of()
                 : candidate.getCitations().stream()
                         .filter(c -> c.getChunkId() != null && validIds.contains(c.getChunkId()))
                         .map(c -> enrich(c, byChunkId.get(c.getChunkId())))
                         .toList();
+
+        // L'utente vede le citazioni come "documento · pagina": due chunk diversi
+        // della stessa pagina dello stesso documento appaiono identici. Le
+        // collassiamo qui, tenendo la citazione col punteggio più alto, così non
+        // mostriamo mai due voci duplicate.
+        List<Citation> verified = dedupeByDocAndPage(enriched);
 
         // La risposta è generata SOLO dai frammenti recuperati: anche senza
         // citazioni esplicite resta fondata, quindi la restituiamo comunque
@@ -56,6 +65,25 @@ public class VerificationAgentService {
         }
         candidate.setCitations(verified);
         return candidate;
+    }
+
+    // Collassa le citazioni che puntano allo stesso documento e pagina,
+    // mantenendo per ciascuna coppia la citazione col punteggio migliore e
+    // preservando l'ordine di prima comparsa.
+    private List<Citation> dedupeByDocAndPage(List<Citation> citations) {
+        LinkedHashMap<String, Citation> byDocPage = new LinkedHashMap<>();
+        for (Citation c : citations) {
+            String key = c.getDocId() + "#" + c.getPage();
+            Citation existing = byDocPage.get(key);
+            if (existing == null || scoreOf(c) > scoreOf(existing)) {
+                byDocPage.put(key, c);
+            }
+        }
+        return new ArrayList<>(byDocPage.values());
+    }
+
+    private double scoreOf(Citation c) {
+        return c.getScore() == null ? Double.NEGATIVE_INFINITY : c.getScore();
     }
 
     private Citation enrich(Citation citation, ChunkIndexService.ChunkHit hit) {

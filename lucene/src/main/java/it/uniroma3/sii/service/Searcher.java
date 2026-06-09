@@ -1,9 +1,8 @@
 package it.uniroma3.sii.service;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,13 +36,19 @@ public class Searcher {
             String query,
             DocumentType fileType,
             String vaultId,
-            LocalDate addedAfter,
-            LocalDate addedBefore) {
+            String fileName,
+            Long minSizeKb,
+            Long maxSizeKb) {
+
+        String nameNeedle = fileName == null ? "" : fileName.strip().toLowerCase(Locale.ROOT);
+        Long minBytes = minSizeKb == null ? null : minSizeKb * 1024;
+        Long maxBytes = maxSizeKb == null ? null : maxSizeKb * 1024;
 
         List<KnowledgeDocument> documents = resolveDocuments(vaultId).stream()
                 .filter(doc -> fileType == null || doc.getType() == fileType)
-                .filter(doc -> afterDate(doc, addedAfter))
-                .filter(doc -> beforeDate(doc, addedBefore))
+                .filter(doc -> nameMatches(doc, nameNeedle))
+                .filter(doc -> minBytes == null || doc.getSize() >= minBytes)
+                .filter(doc -> maxBytes == null || doc.getSize() <= maxBytes)
                 .toList();
 
         if (documents.isEmpty()) {
@@ -88,18 +93,12 @@ public class Searcher {
         return mapping;
     }
 
-    private boolean afterDate(KnowledgeDocument doc, LocalDate addedAfter) {
-        if (addedAfter == null || doc.getCreatedAt() == null) {
+    private boolean nameMatches(KnowledgeDocument doc, String needle) {
+        if (needle.isEmpty()) {
             return true;
         }
-        return !doc.getCreatedAt().toLocalDate().isBefore(addedAfter);
-    }
-
-    private boolean beforeDate(KnowledgeDocument doc, LocalDate addedBefore) {
-        if (addedBefore == null || doc.getCreatedAt() == null) {
-            return true;
-        }
-        return !doc.getCreatedAt().toLocalDate().isAfter(addedBefore);
+        return doc.getName() != null
+                && doc.getName().toLowerCase(Locale.ROOT).contains(needle);
     }
 
     private String truncate(String text, int max) {
