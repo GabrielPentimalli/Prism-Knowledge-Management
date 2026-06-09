@@ -1,4 +1,4 @@
-# Prism
+# Prism Knowledge Management
 
 Prism is a local-first knowledge manager with a multi-agent RAG chat. Documents, indices, conversation history, and the language model all stay on your device: nothing is sent to an external service.
 
