@@ -1,241 +1,149 @@
-# Prism — Local-First Knowledge Manager
+# Prism, a Local-First Knowledge Manager
 
-**Prism** è un knowledge manager **local-first** con chat RAG multi-agente: i tuoi documenti, gli indici, lo storico delle conversazioni e l'LLM stesso restano sempre sul tuo dispositivo. Nessun dato lascia la macchina, nessun servizio esterno è richiesto.
+Prism is a local-first knowledge manager with a multi-agent RAG chat. Documents, indices, conversation history, and the language model all stay on your device: nothing is sent to an external service.
 
-Costruito su **Apache Lucene** per il retrieval e su un **LLM locale** (Ollama o qualunque endpoint OpenAI-compatibile su `localhost`) per la sintesi, Prism trasforma una raccolta personale di PDF, articoli HTML, DOCX e note in una base di conoscenza interrogabile in linguaggio naturale — con citazioni verificabili a livello di paragrafo.
+It uses Apache Lucene for retrieval and a local LLM (Ollama, or any OpenAI-compatible endpoint on `localhost`) for synthesis, turning a collection of PDF, HTML, DOCX, and text files into a knowledge base you can query in natural language, with citations anchored to the source paragraph.
 
----
+## Key Features
 
-## Cosa rende Prism distintivo
+- **Local by default.** All data (documents, Lucene indices, chat sessions, settings) lives in a user-chosen data root. The `prism.local-mode.required` invariant prevents the application from running against any LLM endpoint that is not on `localhost`, and an append-only `privacy.log` records every access to local storage.
+- **Three-agent RAG pipeline.** Retrieval, synthesis, and verification are handled by separate agents, with a deterministic check that drops any citation not backed by a retrieved chunk (see below).
+- **Paragraph-anchored citations.** Each answer cites its sources by `docId`, page, paragraph index, and `chunkId`, and the viewer links from a cited fragment back to the original passage.
+- **Vaults.** Documents are grouped into thematic vaults. A chat can be scoped to a single document or to a whole vault; in vault scope, retrieved chunks are balanced across documents so no single file dominates.
+- **Multi-format ingestion.** A single pipeline handles PDF, HTML, DOCX, TXT, and Markdown with configurable overlapping chunks.
 
-### Privacy by design, non per opzione
-- **`prism.local-mode.required=true`** non è un flag, è un'invariante: l'applicazione si rifiuta di operare se non punta a un endpoint LLM su `localhost`.
-- Tutti i dati (documenti, indici Lucene, sessioni di chat, impostazioni) vivono in un *data root* scelto dall'utente (default `./prism-data`, override via onboarding).
-- Un **`privacy.log`** append-only traccia ogni accesso allo storage locale: un audit trail leggibile, non un'opacità da black-box.
-
-### Pipeline RAG a tre agenti
-A differenza dei tipici flussi "retrieve + LLM" monolitici, Prism orchestra tre agenti dedicati:
+## How the RAG Pipeline Works
 
 ```
-User query → RetrievalAgent → SynthesisAgent → VerificationAgent → Answer + citations
-                  │                  │                   │
-             Lucene chunk        LLM locale        Filtra citazioni
-             index (BM25)        (JSON output)     non ancorate ai chunk
+User query -> RetrievalAgent -> SynthesisAgent -> VerificationAgent -> Answer + citations
+                   |                  |                   |
+              Lucene chunk        local LLM         drops citations
+              index (BM25)        (JSON output)     not anchored to chunks
 ```
 
-1. **RetrievalAgent** — interroga l'indice Lucene dei chunk, bilanciando i risultati tra documenti quando lo scope è un intero *vault* (garantisce un numero minimo di chunk per documento, evita risultati monopolizzati da un singolo file).
-2. **SynthesisAgent** — chiede all'LLM locale di rispondere usando **esclusivamente** i chunk forniti, in JSON strutturato con citazioni esplicite (`chunkId`, `docId`, `page`, `paragraphIndex`).
-3. **VerificationAgent** — scarta ogni citazione il cui `chunkId` non corrisponde a uno dei chunk realmente recuperati: barriera anti-hallucination *deterministica*, non basata su prompt.
+1. **RetrievalAgent** queries the Lucene chunk index. In vault scope it guarantees a minimum number of chunks per document, so the result set is not monopolized by one file.
+2. **SynthesisAgent** asks the local LLM to answer using only the supplied chunks, returning structured JSON with explicit citations (`chunkId`, `docId`, `page`, `paragraphIndex`).
+3. **VerificationAgent** discards any citation whose `chunkId` does not match a chunk that was actually retrieved. This is a deterministic filter, not a prompt-based safeguard.
 
-Se nessuna citazione sopravvive alla verifica, la risposta diventa `"non ho evidenza sufficiente nei documenti caricati"`. Mai inventato, mai approssimato.
+If no citation survives verification, the response reports that there is insufficient evidence in the loaded documents rather than producing an unsupported answer.
 
-### Citazioni ancorate al paragrafo
-Ogni risposta espone le citazioni con coordinate precise (`docId` + pagina + indice di paragrafo + `chunkId`). L'interfaccia permette di saltare dal frammento citato al passaggio originale nel visualizzatore documenti.
+## Ingestion Formats
 
-### Vault: contesto modulare
-I documenti si organizzano in **vault** (raccolte tematiche). La chat può essere scopata su:
-- un **singolo documento** — domande puntuali, riferimenti precisi;
-- un **intero vault** — domande comparative, sintesi cross-documento (con bilanciamento automatico dei chunk recuperati per evitare bias verso un singolo file).
-
-### Ingestione multi-formato
-Pipeline unica per cinque formati, con chunking sovrapposto configurabile:
-
-| Formato | Estrazione | Granularità |
+| Format | Extraction | Granularity |
 |---|---|---|
-| PDF | Apache PDFBox | per pagina, poi paragrafi |
-| HTML | Jsoup (h1–h6, p, li, blockquote, pre) | paragrafi semantici |
-| DOCX | Apache POI | paragrafi `XWPFParagraph` |
-| TXT / Markdown | parser nativo | blocchi separati da `\n\n` |
+| PDF | Apache PDFBox | per page, then paragraphs |
+| HTML | Jsoup (h1 to h6, p, li, blockquote, pre) | semantic paragraphs |
+| DOCX | Apache POI | `XWPFParagraph` paragraphs |
+| TXT / Markdown | native parser | blocks separated by `\n\n` |
 
-Chunk size e overlap sono parametrizzabili (default 900 / 150 caratteri).
+Chunk size and overlap default to 900 and 150 characters and are configurable.
 
----
+## Getting Started
 
-## Architettura
+### Prerequisites
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Web UI (Thymeleaf)                                         │
-│  Home · Vault workspace · Document workspace · Viewer       │
-│  Global search · Settings · Onboarding                      │
-└───────────────────┬─────────────────────────────────────────┘
-                    │  REST  (/api/vaults · /api/documents
-                    │         /api/chat   · /api/search
-                    │         /api/settings · /api/system)
-┌───────────────────▼─────────────────────────────────────────┐
-│  Application services                                       │
-│  ├── ChatService  ── RetrievalAgent ─┐                      │
-│  │                   SynthesisAgent ─┼─► LlmClient ──► LLM  │
-│  │                   VerificationAgent┘    (HTTP localhost) │
-│  ├── DocumentService                                        │
-│  │      └── DocumentExtractionService                       │
-│  │      └── DocumentChunkerService                          │
-│  │      └── ChunkIndexService  ───────►  Lucene index       │
-│  ├── VaultService                                           │
-│  ├── SettingsService                                        │
-│  └── SystemStatusService                                    │
-└───────────────────┬─────────────────────────────────────────┘
-                    │
-┌───────────────────▼─────────────────────────────────────────┐
-│  Local storage (./prism-data o data-root scelto)            │
-│  ├── documents/        raw files + metadata                 │
-│  ├── indices/chunks/   Lucene chunk index                   │
-│  ├── vaults/           definizioni vault (JSON)             │
-│  ├── chats/            sessioni di chat persistenti         │
-│  └── logs/privacy.log  audit append-only                    │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Stack tecnologico
-
-| Componente | Tecnologia |
-|---|---|
-| Backend | Spring Boot 3.3.5 (Web + WebFlux + Validation) |
-| Linguaggio | Java 21 |
-| Motore di ricerca | Apache Lucene 10.3.1 (core, queryparser, analysis, highlighter) |
-| Templating | Thymeleaf |
-| LLM client | HTTP verso endpoint OpenAI-compatibile (Ollama by default) |
-| Parsing PDF | Apache PDFBox 3.0.3 |
-| Parsing DOCX | Apache POI 5.3.0 |
-| Parsing HTML | Jsoup 1.21.2 |
-| API docs | Springdoc OpenAPI / Swagger UI |
-| Build | Maven |
-
----
-
-## Prerequisiti
-
-- **Java 21+**
-- **Maven 3.8+**
-- Un **LLM locale** raggiungibile via HTTP su `localhost`. Default: [Ollama](https://ollama.com) su `http://localhost:11434/v1` con modello `llama3.1:8b`.
+- Java 21 or later, and Maven 3.8 or later.
+- A local LLM reachable over HTTP on `localhost`. The default is [Ollama](https://ollama.com) on `http://localhost:11434/v1` with the `llama3.1:8b` model:
   ```bash
   ollama pull llama3.1:8b
   ollama serve
   ```
-- (Opzionale) **Python 3** per lo script di benchmark LLM.
+- Python 3 (optional), required only for the LLM benchmark script.
 
----
-
-## Avvio rapido
+### Run
 
 ```bash
 git clone https://github.com/GabrielPentimalli/Prism-Knowledge-Management.git
 cd Prism-Knowledge-Management/lucene
-
 mvn clean install
 mvn spring-boot:run
 ```
 
-Apri `http://localhost:8080`. Al primo avvio Prism mostra un **onboarding** che permette di:
-1. scegliere la cartella per i dati locali (data root);
-2. confermare l'endpoint LLM locale;
-3. confermare la modalità local-first.
+Open `http://localhost:8080`. On first launch, an onboarding flow lets you choose the local data root, confirm the LLM endpoint, and confirm local-first mode. After that you can create vaults, upload documents, and chat. REST documentation is available at `http://localhost:8080/swagger-ui.html`.
 
-Da quel momento puoi creare vault, caricare documenti, e chattare. La documentazione REST è su `http://localhost:8080/swagger-ui.html`.
+## Configuration
 
----
-
-## Configurazione
-
-Tutto via `lucene/src/main/resources/application.properties`. Le voci più rilevanti:
+Settings live in `lucene/src/main/resources/application.properties`. The data root and LLM model can also be changed at runtime from `/settings` without restarting the backend.
 
 ```properties
-# LLM locale (deve essere su localhost: vincolo di sicurezza)
+# Local LLM
 llm.base-url=http://localhost:11434/v1
 llm.model=llama3.1:8b
 
-# Storage local-first
+# Local-first storage
 prism.storage.default-data-root=./prism-data
 prism.storage.bootstrap-file=${user.home}/.prism/settings.json
 prism.local-mode.required=true
 prism.onboarding.required=true
 prism.minimum-free-disk-mb=512
 
-# Indice e retrieval
+# Index and retrieval
 prism.lucene.chunk-index-dir=indices/chunks
-prism.chunk.size=900               # caratteri per chunk
-prism.chunk.overlap=150            # overlap tra chunk consecutivi
-prism.retrieval.top-k=8            # chunk recuperati per query
-prism.retrieval.min-chunks-per-doc=2   # minimo garantito per documento in scope vault
-prism.retrieval.vault-per-doc-cap=4    # tetto per documento in scope vault
+prism.chunk.size=900                    # characters per chunk
+prism.chunk.overlap=150                 # overlap between consecutive chunks
+prism.retrieval.top-k=8                 # chunks retrieved per query
+prism.retrieval.min-chunks-per-doc=2    # minimum per document in vault scope
+prism.retrieval.vault-per-doc-cap=4     # cap per document in vault scope
 
 # Upload
 spring.servlet.multipart.max-file-size=100MB
 spring.servlet.multipart.max-request-size=200MB
 ```
 
-Le impostazioni runtime (data root, modello LLM) sono modificabili a caldo da `/settings` senza riavviare il backend.
+## REST API
 
----
-
-## API REST (sintesi)
-
-| Endpoint | Metodo | Funzione |
+| Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/vaults` | GET / POST / DELETE | Gestione vault |
-| `/api/vaults/{id}` | GET | Dettaglio vault con documenti |
-| `/api/documents` | POST (multipart) | Upload e indicizzazione documento |
-| `/api/documents` | GET | Lista documenti |
-| `/api/documents/{id}` | GET | Documento + chunk |
-| `/api/documents/{id}/pages` | GET | Testo per pagina (visualizzatore) |
-| `/api/chat` | POST | Invio messaggio con scope (DOCUMENT o VAULT) |
-| `/api/chat/sessions` | GET | Sessioni per uno scope |
-| `/api/chat/{sessionId}/history` | GET | Storico messaggi |
-| `/api/search/global` | GET | Ricerca cross-documento con filtri (tipo, vault, intervallo date) |
-| `/api/settings` | GET / PUT | Impostazioni Prism + ultimi log privacy |
-| `/api/system/status` | GET | Stato runtime (LLM raggiungibile, spazio disco, ecc.) |
+| `/api/vaults` | GET / POST / DELETE | Vault management |
+| `/api/vaults/{id}` | GET | Vault detail with documents |
+| `/api/documents` | POST (multipart) | Upload and index a document |
+| `/api/documents` | GET | List documents |
+| `/api/documents/{id}` | GET | Document and chunks |
+| `/api/documents/{id}/pages` | GET | Text by page (for the viewer) |
+| `/api/chat` | POST | Send a message with a scope (DOCUMENT or VAULT) |
+| `/api/chat/sessions` | GET | Sessions for a given scope |
+| `/api/chat/{sessionId}/history` | GET | Message history |
+| `/api/search/global` | GET | Cross-document search with filters (type, vault, date range) |
+| `/api/settings` | GET / PUT | Settings and recent privacy log entries |
+| `/api/system/status` | GET | Runtime status (LLM reachability, disk space) |
 
----
-
-## Struttura del progetto
+## Project Structure
 
 ```
 Prism-Knowledge-Management/
-├── lucene/                        ← modulo applicativo Spring Boot
-│   ├── pom.xml
-│   └── src/main/
-│       ├── java/it/uniroma3/sii/
-│       │   ├── LuceneWebApp.java          ← entry point
-│       │   ├── config/                    ← LuceneConfig, WebConfig
-│       │   ├── controller/                ← REST + page controllers
-│       │   ├── dto/                       ← request/response payloads
-│       │   ├── model/                     ← Vault, KnowledgeDocument,
-│       │   │                                DocumentChunk, Citation, …
-│       │   ├── service/
-│       │   │   ├── chat/                  ← Retrieval/Synthesis/Verification
-│       │   │   │                            agents + LlmClient
-│       │   │   ├── indexing/              ← extraction, chunking, Lucene index
-│       │   │   └── storage/               ← repos locali + privacy log
-│       │   └── utils/
-│       └── resources/
-│           ├── application.properties
-│           ├── templates/                 ← Thymeleaf
-│           └── static/css|js|images/
-└── scripts/
-    └── ollama_benchmark.py        ← confronto modelli LLM via /api/chat
++-- lucene/                        # Spring Boot application module
+|   +-- pom.xml
+|   +-- src/main/
+|       +-- java/it/uniroma3/sii/
+|       |   +-- LuceneWebApp.java  # entry point
+|       |   +-- config/            # LuceneConfig, WebConfig
+|       |   +-- controller/        # REST and page controllers
+|       |   +-- dto/               # request and response payloads
+|       |   +-- model/             # Vault, KnowledgeDocument, DocumentChunk, ...
+|       |   +-- service/
+|       |   |   +-- chat/          # Retrieval/Synthesis/Verification, LlmClient
+|       |   |   +-- indexing/      # extraction, chunking, Lucene index
+|       |   |   +-- storage/       # local repositories and privacy log
+|       |   +-- utils/
+|       +-- resources/
+|           +-- application.properties
+|           +-- templates/         # Thymeleaf
+|           +-- static/css|js|images/
++-- scripts/
+    +-- ollama_benchmark.py        # compares LLM models via /api/chat
 ```
 
----
+## Benchmarking Local LLMs
 
-## Benchmark LLM locali
-
-Lo script `scripts/ollama_benchmark.py` rileva automaticamente i modelli installati in Ollama (`ollama list`), aggiorna `llm.model` in `application.properties`, e per ciascun modello invia una query fissa all'endpoint chat di Prism. Misura latenza, throughput, qualità della risposta.
+`scripts/ollama_benchmark.py` detects the models installed in Ollama (`ollama list`), updates `llm.model` in `application.properties`, and sends a fixed query to the Prism chat endpoint for each model, measuring latency, throughput, and response quality.
 
 ```bash
-# Backend Prism avviato su http://localhost:8080
+# With the Prism backend running on http://localhost:8080
 python scripts/ollama_benchmark.py
 ```
 
-Output in `output/ollama_benchmark/`:
-- `raw_results.csv` — risultati per modello/run
-- `summary_by_model.csv` — medie, p95 di latenza, throughput
-- `summary.json` — riepilogo aggregato
-- `charts/` — grafici (richiede `pip install matplotlib`)
+Results are written to `output/ollama_benchmark/`: `raw_results.csv` (per model and run), `summary_by_model.csv` (averages, latency p95, throughput), `summary.json` (aggregated summary), and `charts/` (requires `pip install matplotlib`).
 
----
+## License
 
-## Licenza
-
-Distribuito sotto licenza **MIT**. Vedi [`LICENSE`](LICENSE).
+Distributed under the MIT License. See [`LICENSE`](LICENSE).
