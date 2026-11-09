@@ -259,21 +259,25 @@ public class SynthesisAgentService {
         List<Integer> out = new ArrayList<>();
         if (value.isArray()) {
             for (JsonNode item : value) {
-                if (item.isInt() || item.isLong()) {
+                if (item.isIntegralNumber() && item.canConvertToInt()) {
                     out.add(item.asInt());
                 } else if (item.isTextual() && item.asText().strip().matches("\\d+")) {
-                    out.add(Integer.parseInt(item.asText().strip()));
+                    try {
+                        out.add(Integer.parseInt(item.asText().strip()));
+                    } catch (NumberFormatException ignored) {
+                        // Un indice fuori dal range int non può riferirsi a un frammento.
+                    }
                 } else if (item.isObject()) {
                     for (String k : List.of("index", "n", "id", "source", "number")) {
                         JsonNode inner = item.get(k);
-                        if (inner != null && (inner.isInt() || inner.isLong())) {
+                        if (inner != null && inner.isIntegralNumber() && inner.canConvertToInt()) {
                             out.add(inner.asInt());
                             break;
                         }
                     }
                 }
             }
-        } else if (value.isInt() || value.isLong()) {
+        } else if (value.isIntegralNumber() && value.canConvertToInt()) {
             out.add(value.asInt());
         }
         return out;

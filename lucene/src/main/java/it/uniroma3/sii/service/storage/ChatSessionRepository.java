@@ -46,7 +46,7 @@ public class ChatSessionRepository {
             session.setUpdatedAt(LocalDateTime.now());
             Path dir = scopeDir(session.getScopeType(), session.getScopeId());
             Files.createDirectories(dir);
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(dir.resolve(session.getId() + ".json").toFile(), session);
+            JsonStorage.write(objectMapper, StorageId.resolve(dir, StorageId.validate(session.getId()) + ".json"), session);
             return session;
         } catch (IOException e) {
             throw new IllegalStateException("Impossibile salvare la sessione chat " + session.getId(), e);
@@ -54,6 +54,7 @@ public class ChatSessionRepository {
     }
 
     public Optional<PersistentChatSession> findById(String sessionId) {
+        StorageId.validate(sessionId);
         Path root = paths.chatsDir();
         if (!Files.exists(root)) {
             return Optional.empty();
@@ -105,7 +106,10 @@ public class ChatSessionRepository {
     }
 
     private Path scopeDir(ChatScopeType scopeType, String scopeId) {
-        return paths.chatsDir().resolve(scopeType.name().toLowerCase()).resolve(scopeId);
+        if (scopeType == null) {
+            throw new IllegalArgumentException("scopeType è obbligatorio.");
+        }
+        return StorageId.resolve(paths.chatsDir().resolve(scopeType.name().toLowerCase(java.util.Locale.ROOT)), scopeId);
     }
 
     private String defaultName(ChatScopeType scopeType) {

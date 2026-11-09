@@ -104,6 +104,19 @@ class SynthesisAgentServiceTest {
     }
 
     @Test
+    void overflowingSourceIndicesCannotCrashOrAliasValidSources() {
+        llmReturns("""
+                {"answer":"risposta","sources":["9999999999999999999999999",4294967297,
+                {"index":4294967298},"2"]}
+                """);
+
+        StructuredAnswer r = service.synthesize("domanda", twoChunks());
+
+        assertThat(r.getAnswer()).isEqualTo("risposta");
+        assertThat(r.getCitations()).extracting(c -> c.getChunkId()).containsExactly("B-0");
+    }
+
+    @Test
     void emptyChunks_returnsInsufficientWithoutCallingLlm() {
         StructuredAnswer r = service.synthesize("domanda", List.of());
 

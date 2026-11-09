@@ -1,3 +1,9 @@
+"""Tool Selenium legacy per la precedente UI di articoli, tabelle e immagini.
+
+I selettori e le metriche attesi non appartengono alla UI PRISM corrente.
+Conservato come riferimento storico; non è una verifica end-to-end di questa versione.
+"""
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service

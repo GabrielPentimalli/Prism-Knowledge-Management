@@ -53,11 +53,11 @@ public class VerificationAgentService {
         // mostriamo mai due voci duplicate.
         List<Citation> verified = dedupeByDocAndPage(enriched);
 
-        // La risposta è generata SOLO dai frammenti recuperati: anche senza
-        // citazioni esplicite resta fondata, quindi la restituiamo comunque
-        // invece di scartarla con un falso "non ho evidenza".
+        // La politica applicativa conserva le risposte non vuote anche senza
+        // citazioni valide. Questo filtro verifica i riferimenti, non il
+        // supporto semantico delle affermazioni rispetto ai frammenti.
         if (verified.isEmpty()) {
-            log.debug("Verification: risposta valida senza citazioni verificate; restituita con citations vuote.");
+            log.debug("Verification: risposta senza citazioni verificate conservata con citations vuote.");
         } else {
             log.debug("Verification: {} citazioni valide su {} proposte.",
                     verified.size(),

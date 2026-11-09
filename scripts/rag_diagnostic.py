@@ -2,9 +2,9 @@
 """
 PRISM RAG diagnostic harness.
 
-Riproduce fedelmente la pipeline di chat di PRISM
-(retrieval -> synthesis -> verification) per capire PERCHE' il modello
-risponde "non ho evidenza sufficiente nei documenti caricati".
+Harness sperimentale indipendente dalla pipeline Java corrente. Approssima
+il retrieval con BM25 in Python e confronta prompt e verifiche legacy o
+alternative; non misura la correttezza end-to-end dell'applicazione.
 
 Per ogni domanda registra cosa succede a ogni stadio e classifica
 lo stadio esatto in cui la risposta fallisce, cosi' da distinguere:
@@ -16,9 +16,11 @@ lo stadio esatto in cui la risposta fallisce, cosi' da distinguere:
   - citazioni invalide           (chunkId non ricopiati esattamente -> tutte scartate)
   - OK                           (risposta + almeno una citazione valida)
 
-Non richiede di avviare l'app Spring: legge i chunk dai JSON in prism-data,
-approssima il retrieval Lucene con un BM25 leggero + il bilanciamento per-vault,
-e chiama lo stesso endpoint Ollama con lo STESSO prompt di SynthesisAgentService.
+Non richiede Spring: legge tutti i documenti nel data root, senza risolvere
+un vault. Endpoint e modello provengono dalle variabili PRISM_LLM_URL e
+PRISM_LLM_MODEL, non dalle impostazioni persistite. I prompt, la verifica e
+il formato HTTP non coincidono con lo schema strict Java; manca la riscrittura
+conversazionale. Le categorie seguenti descrivono l'esperimento selezionato.
 """
 
 import argparse
@@ -31,14 +33,14 @@ import time
 import urllib.request
 from collections import Counter, defaultdict
 
-# --- Parametri allineati a application.properties ---
+# Default sperimentali: non vengono caricati dalle properties o dalle impostazioni PRISM.
 LLM_BASE_URL = os.environ.get("PRISM_LLM_URL", "http://localhost:11434/v1")
 LLM_MODEL = os.environ.get("PRISM_LLM_MODEL", "mistral-nemo:12b")
 TOP_K = 8
 MIN_PER_DOC = 2
 VAULT_PER_DOC_CAP = 4
 
-# Prompt copiato VERBATIM da SynthesisAgentService.PROMPT
+# Prompt legacy con chunkId espliciti, diverso dal prompt Java corrente con sources numerici.
 SYNTHESIS_PROMPT = """Sei il synthesis agent di PRISM. Il tuo compito è rispondere alla domanda dell'utente
 usando ESCLUSIVAMENTE i chunk forniti come evidenza, citandoli con il loro chunkId.
 
@@ -107,7 +109,7 @@ def tokenize(text):
 
 
 def load_chunks(data_root):
-    """Carica tutti i chunk dei documenti del vault dai file chunks.json."""
+    """Carica tutti i chunk dei documenti del data root, senza filtro per vault."""
     docs = {}
     for path in glob.glob(os.path.join(data_root, "documents", "*", "chunks.json")):
         chunks = json.load(open(path, encoding="utf-8"))

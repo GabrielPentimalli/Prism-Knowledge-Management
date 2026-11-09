@@ -17,9 +17,10 @@ import java.util.Map;
 @Component
 public class LlmClient {
 
-    private volatile WebClient webClient;
-    private volatile String model;
-    private volatile String baseUrl;
+    private record Configuration(WebClient webClient, String model, String baseUrl) {
+    }
+
+    private volatile Configuration configuration;
 
     public LlmClient(
             @Value("${llm.base-url}") String baseUrl,
@@ -32,6 +33,15 @@ public class LlmClient {
      * Valida il vincolo local-first: solo localhost è ammesso.
      */
     public synchronized void configure(String newBaseUrl, String newModel) {
+        validateConfiguration(newBaseUrl, newModel);
+        WebClient client = WebClient.builder()
+                .baseUrl(newBaseUrl)
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(2 * 1024 * 1024))
+                .build();
+        configuration = new Configuration(client, newModel, newBaseUrl);
+    }
+
+    public static void validateConfiguration(String newBaseUrl, String newModel) {
         if (newBaseUrl == null || newBaseUrl.isBlank()) {
             throw new IllegalArgumentException("llm.base-url non può essere vuoto");
         }
@@ -39,12 +49,6 @@ public class LlmClient {
             throw new IllegalArgumentException("llm.model non può essere vuoto");
         }
         ensureLocalhost(newBaseUrl);
-        this.baseUrl = newBaseUrl;
-        this.model = newModel;
-        this.webClient = WebClient.builder()
-                .baseUrl(newBaseUrl)
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(2 * 1024 * 1024))
-                .build();
     }
 
     public String chat(String systemPrompt, String userMessage) {
@@ -58,8 +62,9 @@ public class LlmClient {
      * OpenAI-compatible di Ollama).
      */
     public String chat(String systemPrompt, String userMessage, boolean jsonMode) {
+        Configuration current = configuration;
         Map<String, Object> messages = Map.of(
-                "model", model,
+                "model", current.model(),
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user",   "content", userMessage)
@@ -69,7 +74,7 @@ public class LlmClient {
                 ? withJsonFormat(messages)
                 : messages;
 
-        return webClient.post()
+        return current.webClient().post()
                 .uri("/chat/completions")
                 .bodyValue(body)
                 .retrieve()
@@ -95,8 +100,9 @@ public class LlmClient {
      */
     public String chatStructured(String systemPrompt, String userMessage,
                                  String schemaName, Map<String, Object> schema) {
+        Configuration current = configuration;
         java.util.Map<String, Object> body = new java.util.HashMap<>();
-        body.put("model", model);
+        body.put("model", current.model());
         body.put("temperature", 0);
         body.put("messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
@@ -111,7 +117,7 @@ public class LlmClient {
                 )
         ));
 
-        return webClient.post()
+        return current.webClient().post()
                 .uri("/chat/completions")
                 .bodyValue(body)
                 .retrieve()
@@ -121,8 +127,9 @@ public class LlmClient {
     }
 
     public boolean isModelAvailable() {
+        Configuration current = configuration;
         try {
-            JsonNode response = webClient.get()
+            JsonNode response = current.webClient().get()
                     .uri("/models")
                     .retrieve()
                     .bodyToMono(JsonNode.class)
@@ -136,7 +143,7 @@ public class LlmClient {
             }
             for (JsonNode modelNode : data) {
                 String id = modelNode.path("id").asText("");
-                if (id.equalsIgnoreCase(model)) {
+                if (id.equalsIgnoreCase(current.model())) {
                     return true;
                 }
             }
@@ -147,18 +154,21 @@ public class LlmClient {
     }
 
     public String getModel() {
-        return model;
+        return configuration.model();
     }
 
     public String getBaseUrl() {
-        return baseUrl;
+        return configuration.baseUrl();
     }
 
-    private void ensureLocalhost(String baseUrl) {
+    private static void ensureLocalhost(String baseUrl) {
         URI uri = URI.create(baseUrl);
         String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
-        if (!(host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1"))) {
-            throw new IllegalStateException("Per privacy local-first, llm.base-url deve puntare a localhost.");
+        if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))) {
+            throw new IllegalArgumentException("llm.base-url deve usare HTTP o HTTPS.");
+        }
+        if (!(host.equals("localhost") || host.equals("127.0.0.1") || host.equals("[::1]"))) {
+            throw new IllegalArgumentException("Per privacy local-first, llm.base-url deve puntare a localhost.");
         }
     }
 }

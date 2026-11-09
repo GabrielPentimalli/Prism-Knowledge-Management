@@ -16,16 +16,16 @@
             <h1>Benvenuto in PRISM</h1>
         </div>
         <div class="panel-body">
-            <p>PRISM è un knowledge manager <strong>local-first</strong>: i tuoi documenti e le tue chat restano sempre sul tuo dispositivo.</p>
+            <p>PRISM archivia documenti e chat nella cartella dati locale e usa endpoint LLM locali.</p>
             <form id="onboarding-form">
                 <label for="dataRoot">Path locale</label>
-                <input id="dataRoot" name="dataRoot" type="text" placeholder="/Users/you/PRISM-data" required>
+                <input id="dataRoot" name="dataRoot" type="text" th:value="${settings.dataRoot}" placeholder="/Users/you/PRISM-data" required>
 
                 <label for="llmModel">Modello LLM locale</label>
-                <input id="llmModel" name="llmModel" type="text" value="llama3.1:8b" required>
+                <input id="llmModel" name="llmModel" type="text" th:value="${settings.llmModel}" required>
 
                 <label for="llmBaseUrl">Endpoint LLM locale</label>
-                <input id="llmBaseUrl" name="llmBaseUrl" type="text" value="http://localhost:11434/v1" required>
+                <input id="llmBaseUrl" name="llmBaseUrl" type="text" th:value="${settings.llmBaseUrl}" required>
 
                 <button type="submit" style="margin-top: 18px; width: 100%;" title="Inizializza PRISM locale" aria-label="Inizializza PRISM locale">CONFERMA</button>
             </form>
@@ -36,12 +36,6 @@
 <script th:src="@{/js/ui.js}"></script>
 <script>
 const t = (key, params = {}, fallback = key) => window.PrismI18n?.t(key, params, fallback) || fallback;
-
-async function loadStatus() {
-    const res = await fetch('/api/system/status');
-    const status = await res.json();
-    document.getElementById('dataRoot').value = status.dataRoot || '';
-}
 
 document.getElementById('onboarding-form').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -59,7 +53,6 @@ document.getElementById('onboarding-form').addEventListener('submit', async (eve
     window.location.href = '/home';
 });
 
-loadStatus();
 </script>
 <footer th:replace="~{fragments/footer :: footer}"></footer>
 </body>

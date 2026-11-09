@@ -47,7 +47,7 @@ public class DocumentService {
         this.privacyLogService = privacyLogService;
     }
 
-    public FileIndexStatus ingest(MultipartFile file) {
+    public synchronized FileIndexStatus ingest(MultipartFile file) {
         String fileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "document";
         DocumentType type = resolveType(fileName);
         byte[] bytes;
@@ -59,7 +59,7 @@ public class DocumentService {
 
         String hash = sha256(bytes);
         Optional<KnowledgeDocument> existing = documentRepository.findByHash(hash);
-        if (existing.isPresent()) {
+        if (existing.isPresent() && existing.get().getStatus() == DocumentStatus.INDEXED) {
             KnowledgeDocument doc = existing.get();
             privacyLogService.log("Riutilizzato indice documento invariato: " + fileName + " -> " + doc.getId());
             return FileIndexStatus.builder()
@@ -70,7 +70,7 @@ public class DocumentService {
                     .build();
         }
 
-        KnowledgeDocument document = KnowledgeDocument.builder()
+        KnowledgeDocument document = existing.orElseGet(() -> KnowledgeDocument.builder()
                 .id(UUID.randomUUID().toString())
                 .name(fileName)
                 .type(type)
@@ -78,22 +78,25 @@ public class DocumentService {
                 .size(bytes.length)
                 .createdAt(LocalDateTime.now())
                 .status(DocumentStatus.INDEXING)
-                .build();
+                .build());
+
+        document.setStatus(DocumentStatus.INDEXING);
+        document.setError(null);
 
         documentRepository.saveMetadata(document);
 
         try {
-            String extension = sourceExtension(type, fileName);
+            String extension = sourceExtension(document.getType(), document.getName());
             var sourcePath = documentRepository.saveSource(document.getId(), extension, new ByteArrayInputStream(bytes));
             document.setPath(sourcePath.toString());
             documentRepository.saveMetadata(document);
 
-            List<ParsedParagraph> paragraphs = extractionService.extract(sourcePath, type);
+            List<ParsedParagraph> paragraphs = extractionService.extract(sourcePath, document.getType());
             List<DocumentChunk> chunks = chunkerService.chunk(document, paragraphs);
             documentRepository.saveChunks(document.getId(), chunks);
             chunkIndexService.indexDocumentChunks(document.getId(), document.getName(), document.getType().name(), chunks);
 
-            List<DocumentPage> pages = extractionService.extractPages(sourcePath, type);
+            List<DocumentPage> pages = extractionService.extractPages(sourcePath, document.getType());
             documentRepository.savePages(document.getId(), pages);
 
             document.setStatus(DocumentStatus.INDEXED);

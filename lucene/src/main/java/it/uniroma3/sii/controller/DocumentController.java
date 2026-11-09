@@ -66,10 +66,17 @@ public class DocumentController {
         byte[] bytes = Files.readAllBytes(sourcePath);
         String filename = sourcePath.getFileName().toString();
         MediaType mediaType = resolveMediaType(filename);
-        return ResponseEntity.ok()
+        var response = ResponseEntity.ok()
                 .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                .body(new ByteArrayResource(bytes));
+                .header("X-Content-Type-Options", "nosniff");
+        if (MediaType.TEXT_HTML.equals(mediaType) || MediaType.APPLICATION_XML.equals(mediaType)) {
+            // Il sorgente caricato non è codice fidato dell'applicazione, anche
+            // quando viene aperto direttamente anziché nel viewer.
+            response.header("Content-Security-Policy",
+                    "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+        }
+        return response.body(new ByteArrayResource(bytes));
     }
 
     private MediaType resolveMediaType(String filename) {

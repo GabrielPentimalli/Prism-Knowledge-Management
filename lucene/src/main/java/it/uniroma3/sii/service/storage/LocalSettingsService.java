@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import it.uniroma3.sii.dto.OnboardingInitRequest;
 import it.uniroma3.sii.dto.SettingsUpdateRequest;
 import it.uniroma3.sii.model.PrismSettings;
+import it.uniroma3.sii.service.chat.LlmClient;
 
 @Service
 public class LocalSettingsService {
@@ -121,14 +122,15 @@ public class LocalSettingsService {
     }
 
     private void persistSettings(PrismSettings settings) {
+        LlmClient.validateConfiguration(settings.getLlmBaseUrl(), settings.getLlmModel());
         try {
             Path dataRoot = Paths.get(settings.getDataRoot()).toAbsolutePath().normalize();
             Path configDir = dataRoot.resolve("config");
             Files.createDirectories(configDir);
             Files.createDirectories(bootstrapSettingsFile.getParent());
             Path settingsFile = configDir.resolve("settings.json");
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(settingsFile.toFile(), settings);
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(bootstrapSettingsFile.toFile(), settings);
+            JsonStorage.write(objectMapper, settingsFile, settings);
+            JsonStorage.write(objectMapper, bootstrapSettingsFile, settings);
         } catch (IOException e) {
             throw new IllegalStateException("Impossibile salvare le impostazioni locali", e);
         }

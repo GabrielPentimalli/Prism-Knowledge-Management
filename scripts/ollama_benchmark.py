@@ -5,15 +5,18 @@ Benchmark automatico del chatbot PRISM variando il modello LLM in application.pr
 Lo script:
 - legge automaticamente i modelli da `ollama list`
 - per ogni modello aggiorna `llm.model` in `lucene/src/main/resources/application.properties`
+- applica il modello alle impostazioni runtime e lo ripristina dopo ogni esecuzione
 - invia una singola query fissa all'endpoint chatbot del progetto
 - salva metriche e riepiloghi in `output/ollama_benchmark`
 
-Prerequisito: backend PRISM avviato su http://localhost:8080.
+Prerequisiti: backend PRISM arrestato, Ollama attivo e uno scope già indicizzato
+selezionato tramite --scope-type e --scope-id.
 """
 
 from __future__ import annotations
 
 import base64
+import argparse
 import html
 import json
 import math
@@ -33,7 +36,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = PROJECT_ROOT / "output" / "ollama_benchmark"
 APP_PROPS_PATH = PROJECT_ROOT / "lucene" / "src" / "main" / "resources" / "application.properties"
 CHAT_API_URL = "http://localhost:8080/api/chat"
-CHAT_SESSIONS_URL = "http://localhost:8080/api/chat/sessions"
+VAULTS_API_URL = "http://localhost:8080/api/vaults"
+SETTINGS_API_URL = "http://localhost:8080/api/settings"
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 8080
 QUERY = "articoli pubblicati nel 2025 che parlano di cancro e malattie cardiovascolari"
@@ -100,10 +104,12 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def call_chatbot(query: str, timeout_s: int) -> dict[str, Any]:
+def call_chatbot(query: str, timeout_s: int, scope_type: str, scope_id: str) -> dict[str, Any]:
     payload = {
         "sessionId": "",
         "message": query,
+        "scopeType": scope_type,
+        "scopeId": scope_id,
     }
     req = urlrequest.Request(
         url=CHAT_API_URL,
@@ -119,6 +125,23 @@ def call_chatbot(query: str, timeout_s: int) -> dict[str, Any]:
         return data
 
 
+def get_runtime_model() -> str:
+    with urlrequest.urlopen(SETTINGS_API_URL, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data["settings"]["llmModel"]
+
+
+def set_runtime_model(model: str) -> None:
+    req = urlrequest.Request(
+        url=SETTINGS_API_URL,
+        data=json.dumps({"llmModel": model}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="PUT",
+    )
+    with urlrequest.urlopen(req, timeout=10):
+        pass
+
+
 def is_port_open(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.5)
@@ -130,7 +153,7 @@ def wait_backend_ready(timeout_s: int) -> None:
     last_error = None
     while time.time() < deadline:
         try:
-            req = urlrequest.Request(url=CHAT_SESSIONS_URL, method="GET")
+            req = urlrequest.Request(url=VAULTS_API_URL, method="GET")
             with urlrequest.urlopen(req, timeout=3) as resp:
                 if 200 <= resp.status < 300:
                     return
@@ -227,12 +250,13 @@ def normalize_article(item: Any, fallback_rank: int) -> dict[str, Any]:
     title = (
         item.get("title")
         or item.get("name")
+        or item.get("docName")
         or item.get("articleTitle")
         or item.get("documentTitle")
         or item.get("label")
         or ""
     )
-    article_id = item.get("id") or item.get("pmid") or item.get("pmcid") or item.get("doi")
+    article_id = item.get("id") or item.get("docId") or item.get("pmid") or item.get("pmcid") or item.get("doi")
     url = item.get("url") or item.get("link")
     snippet = item.get("abstract") or item.get("summary") or item.get("text")
     normalized = {"rank": fallback_rank, "title": str(title).strip()}
@@ -423,7 +447,7 @@ def write_metrics_html(
     path.write_text(page, encoding="utf-8")
 
 
-def main() -> int:
+def main(scope_type: str, scope_id: str) -> int:
     models = get_models_from_ollama_list()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     reset_output_files([ARTICLES_FILE, METRICS_FILE])
@@ -463,11 +487,14 @@ def main() -> int:
                 raw_response = None
                 articles_found: list[dict[str, Any]] = []
                 backend_process = None
+                runtime_model = None
                 try:
                     backend_process = start_backend()
-                    response_data = call_chatbot(QUERY, REQUEST_TIMEOUT_S)
+                    runtime_model = get_runtime_model()
+                    set_runtime_model(model)
+                    response_data = call_chatbot(QUERY, REQUEST_TIMEOUT_S, scope_type, scope_id)
                     raw_response = json.dumps(response_data, ensure_ascii=False)
-                    bot_message = str(response_data.get("botMessage") or "").strip()
+                    bot_message = str(response_data.get("answer") or "").strip()
                     success = bool(response_data.get("success", False))
                     total_results = response_data.get("totalResults")
                     session_id = response_data.get("sessionId")
@@ -482,7 +509,13 @@ def main() -> int:
                     err_msg = f"{type(e).__name__}: {e}"
                 finally:
                     if backend_process is not None:
-                        stop_backend(backend_process)
+                        try:
+                            if runtime_model is not None:
+                                set_runtime_model(runtime_model)
+                        except Exception as e:
+                            err_msg = f"Ripristino modello runtime fallito: {e}"
+                        finally:
+                            stop_backend(backend_process)
 
                 elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 2)
                 articles_count = len(articles_found)
@@ -592,4 +625,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--scope-type", choices=("DOCUMENT", "VAULT"), default="DOCUMENT")
+    parser.add_argument("--scope-id", required=True, help="ID di un documento o vault già caricato in PRISM")
+    args = parser.parse_args()
+    raise SystemExit(main(args.scope_type, args.scope_id))

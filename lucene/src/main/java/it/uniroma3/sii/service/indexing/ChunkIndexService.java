@@ -82,8 +82,9 @@ public class ChunkIndexService {
     }
 
     /**
-     * Restituisce i primi {@code perDoc} chunk per ciascun docId, ordinati per paragrafo crescente.
-     * Utile per garantire copertura minima di tutti i documenti di un vault in retrieval.
+     * Campiona fino a {@code perDoc} chunk disponibili per ciascun docId.
+     * Non applica un ordinamento esplicito per pagina o paragrafo.
+     * Utile per integrare i documenti poco rappresentati nel retrieval del vault.
      */
     public List<ChunkHit> firstChunksPerDoc(Set<String> docIds, int perDoc) {
         if (docIds == null || docIds.isEmpty() || perDoc <= 0) {

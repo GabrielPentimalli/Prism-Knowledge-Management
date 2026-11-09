@@ -2,6 +2,7 @@ package it.uniroma3.sii.service.chat;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ public class RetrievalAgentService {
         this.vaultService = vaultService;
         this.topK = topK;
         this.minPerDoc = Math.max(1, minPerDoc);
-        this.vaultPerDocCap = Math.max(minPerDoc, vaultPerDocCap);
+        this.vaultPerDocCap = Math.max(this.minPerDoc, vaultPerDocCap);
     }
 
     public List<ChunkIndexService.ChunkHit> retrieve(ChatScopeType scopeType, String scopeId, String userMessage) {
@@ -67,33 +68,40 @@ public class RetrievalAgentService {
             List<ChunkIndexService.ChunkHit> textHits,
             Set<String> docIds) {
 
-        Map<String, Long> countPerDoc = textHits.stream()
-                .collect(Collectors.groupingBy(ChunkIndexService.ChunkHit::docId, Collectors.counting()));
+        Map<String, Long> countPerDoc = new HashMap<>();
+        List<ChunkIndexService.ChunkHit> cappedHits = new ArrayList<>();
+        for (ChunkIndexService.ChunkHit hit : textHits) {
+            if (countPerDoc.getOrDefault(hit.docId(), 0L) < vaultPerDocCap) {
+                cappedHits.add(hit);
+                countPerDoc.merge(hit.docId(), 1L, Long::sum);
+            }
+        }
 
         Set<String> underrepresented = docIds.stream()
                 .filter(id -> countPerDoc.getOrDefault(id, 0L) < minPerDoc)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         if (underrepresented.isEmpty()) {
-            return textHits;
+            return cappedHits;
         }
 
         log.debug("Vault retrieval: documenti sotto-rappresentati = {}", underrepresented);
         List<ChunkIndexService.ChunkHit> sample =
                 chunkIndexService.firstChunksPerDoc(underrepresented, minPerDoc);
 
-        Set<String> seen = textHits.stream()
+        Set<String> seen = cappedHits.stream()
                 .map(ChunkIndexService.ChunkHit::chunkId)
                 .collect(Collectors.toCollection(HashSet::new));
 
-        List<ChunkIndexService.ChunkHit> combined = new ArrayList<>(textHits);
+        List<ChunkIndexService.ChunkHit> combined = new ArrayList<>(cappedHits);
         for (ChunkIndexService.ChunkHit hit : sample) {
-            if (seen.add(hit.chunkId())) {
+            if (countPerDoc.getOrDefault(hit.docId(), 0L) < minPerDoc && seen.add(hit.chunkId())) {
                 combined.add(hit);
+                countPerDoc.merge(hit.docId(), 1L, Long::sum);
             }
         }
         log.debug("Vault retrieval finale: {} chunk ({} testo + {} sampling)",
-                combined.size(), textHits.size(), combined.size() - textHits.size());
+                combined.size(), cappedHits.size(), combined.size() - cappedHits.size());
         return combined;
     }
 

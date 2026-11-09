@@ -35,7 +35,7 @@ public class VaultRepository {
             vault.setUpdatedAt(LocalDateTime.now());
             Path vaultDir = vaultDir(vault.getId());
             Files.createDirectories(vaultDir);
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(vaultDir.resolve("vault.json").toFile(), vault);
+            JsonStorage.write(objectMapper, vaultDir.resolve("vault.json"), vault);
             return vault;
         } catch (IOException e) {
             throw new IllegalStateException("Impossibile salvare il vault " + vault.getId(), e);
@@ -91,7 +91,7 @@ public class VaultRepository {
     }
 
     private Path vaultDir(String vaultId) {
-        return paths.vaultsDir().resolve(vaultId);
+        return StorageId.resolve(paths.vaultsDir(), vaultId);
     }
 
     private Vault readVault(Path file) {

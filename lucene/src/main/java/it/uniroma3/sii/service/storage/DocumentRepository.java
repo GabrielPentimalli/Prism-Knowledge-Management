@@ -53,7 +53,7 @@ public class DocumentRepository {
         try {
             Path docDir = documentDir(document.getId());
             Files.createDirectories(docDir);
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(docDir.resolve(METADATA_FILE).toFile(), document);
+            JsonStorage.write(objectMapper, docDir.resolve(METADATA_FILE), document);
         } catch (IOException e) {
             throw new IllegalStateException("Impossibile salvare i metadati del documento " + document.getId(), e);
         }
@@ -63,7 +63,7 @@ public class DocumentRepository {
         try {
             Path docDir = documentDir(docId);
             Files.createDirectories(docDir);
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(docDir.resolve(CHUNKS_FILE).toFile(), chunks);
+            JsonStorage.write(objectMapper, docDir.resolve(CHUNKS_FILE), chunks);
         } catch (IOException e) {
             throw new IllegalStateException("Impossibile salvare i chunk del documento " + docId, e);
         }
@@ -73,7 +73,7 @@ public class DocumentRepository {
         try {
             Path docDir = documentDir(docId);
             Files.createDirectories(docDir);
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(docDir.resolve(PAGES_FILE).toFile(), pages);
+            JsonStorage.write(objectMapper, docDir.resolve(PAGES_FILE), pages);
         } catch (IOException e) {
             throw new IllegalStateException("Impossibile salvare le pagine del documento " + docId, e);
         }
@@ -172,7 +172,7 @@ public class DocumentRepository {
     }
 
     private Path documentDir(String docId) {
-        return paths.documentsDir().resolve(docId);
+        return StorageId.resolve(paths.documentsDir(), docId);
     }
 
     private KnowledgeDocument readMetadataFile(Path metadataFile) {

@@ -33,7 +33,8 @@ public class SearchController {
     }
 
     @GetMapping("/onboarding")
-    public String onboarding() {
+    public String onboarding(Model model) {
+        model.addAttribute("settings", settingsService.getSettings());
         return "onboarding";
     }
 
